@@ -6,7 +6,9 @@
 
 ## Status
 
-**Milestone A — Vertical Slice.** Title → Play → 1 Stage（FRY SCOUT 編隊 → KING BURGER 簡易ボス）→ Stage Clear / FAT OVER → Result → Retry が一本のRunとして通しで遊べる。仮素材・図形ベース。Human Gate 1（採用判断）待ち。
+**Milestone A — Vertical Slice: 完了 (Human Gate 1 PASS).** Title → Play → 1 Stage（FRY SCOUT 編隊 → KING BURGER 簡易ボス）→ Stage Clear / FAT OVER → Result → Retry が一本のRunとして通しで遊べる。仮素材・図形ベース。Human Gate 1（採用判断）はPC操作・コア体験・Boss進行を含めて正式PASS。公開版（GitHub Pages）でのProduction Smoke TestもPASS済み。
+
+現在: **Milestone B — Game Feel and Art Vertical Slice** 準備中。詳細は [`docs/06_IMPLEMENTATION_ROADMAP.md`](./docs/06_IMPLEMENTATION_ROADMAP.md) §5、Art asset inventoryは [`docs/09_ART_ASSET_INVENTORY.md`](./docs/09_ART_ASSET_INVENTORY.md) を参照。
 
 ## Requirements
 

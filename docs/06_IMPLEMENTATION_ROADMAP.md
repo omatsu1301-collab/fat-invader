@@ -165,7 +165,7 @@ Vertical Sliceを「動く試作品」から「触って気持ちいい作品」
 
 ### Work order
 
-1. Art inventoryとasset pipelineを確定。
+1. Art inventoryとasset pipelineを確定。詳細は `docs/09_ART_ASSET_INVENTORY.md`。**本stepは部分完了:** Art inventory自体、素材制作方針(強化placeholder先行)、texture/audio keyの差し替え可能設計方針は確定済み。asset-manifest.ts、素材license記録、BGM/SE音源供給方法は未確定で、step 7(Sound mixとvoice limit)着手直前までに確定すればよい。この未確定分がstep 2〜6の着手を妨げることはない。
 2. 単発shot / hit / killを完成。
 3. 連続killでeffect capを検証。
 4. Player hit / FAT OVERを完成。
