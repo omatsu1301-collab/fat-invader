@@ -21,6 +21,10 @@ export type FatE2ERunSnapshot = {
   bossX?: number;
   bossHp?: number;
   bossMaxHp?: number;
+  /** Diagnostic only: proves a non-lethal hit never hides/disables the boss sprite (Human Gate 1 P1 regression). */
+  bossSpriteActive?: boolean;
+  bossSpriteVisible?: boolean;
+  bossBodyEnabled?: boolean;
 };
 
 export type FatE2ESnapshot = {

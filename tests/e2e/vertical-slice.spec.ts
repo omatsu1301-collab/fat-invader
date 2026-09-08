@@ -1,4 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
+// Type-only import: fully erased at compile time, so this never pulls the
+// Phaser-touching runtime module into the Node-side test bundle.
+import type { FatE2ERunSnapshot } from '../../src/test-support/e2e-bridge';
 
 // FI-02 section 3. Kept as a local literal (not imported from src/game/config)
 // so this Node-side test file never pulls in Phaser, which touches canvas/DOM
@@ -72,6 +75,32 @@ async function defeatBossWithRealCollision(page: Page, box: Box, isMobile: boole
     throw new Error(
       `Boss was not defeated via real collision within the timeout. Final run snapshot: ${JSON.stringify(finalRun)}`,
     );
+  }
+}
+
+async function startAimingAndFiringAtBoss(page: Page, box: Box, isMobile: boolean): Promise<void> {
+  const y = box.y + box.height * 0.86;
+  await page.mouse.move(box.x + box.width / 2, y);
+  await page.mouse.down();
+  if (!isMobile) {
+    await page.keyboard.down('Space');
+  }
+}
+
+async function stopAimingAndFiring(page: Page, isMobile: boolean): Promise<void> {
+  await page.mouse.up();
+  if (!isMobile) {
+    await page.keyboard.up('Space');
+  }
+}
+
+/** Re-aims the pointer at the boss's current x so a continuously-firing player keeps hitting it. */
+async function keepAimingAtBoss(page: Page, box: Box): Promise<void> {
+  const y = box.y + box.height * 0.86;
+  const run = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+  if (typeof run?.bossX === 'number') {
+    const screenX = box.x + (run.bossX / LOGICAL_WIDTH) * box.width;
+    await page.mouse.move(screenX, y);
   }
 }
 
@@ -304,5 +333,131 @@ test.describe('Vertical slice', () => {
 
     expect(consoleErrors).toEqual([]);
     expect(pageErrors).toEqual([]);
+  });
+
+  /**
+   * Human Gate 1 P1 regression, Test 1: KING BURGER vanished (active=false,
+   * visible=false, body disabled) the instant the *first* real player
+   * projectile hit it, even though its HP was still well above 0 — because
+   * `onPlayerProjectileHitsBoss` deactivated whichever overlap argument came
+   * first, and Arcade Physics does not guarantee that argument is always the
+   * projectile when one side is a lone sprite (the boss) and the other a
+   * Group (playerProjectiles). `debugSetBossHp(1)`-based tests couldn't
+   * catch this because they collapse "first hit" and "final hit" into the
+   * same event. This test keeps the boss well above 0 HP so a real,
+   * non-lethal hit is observed while it's still alive.
+   */
+  test('boss survives a non-lethal real hit without vanishing (Human Gate 1 P1 regression, Test 1)', async ({
+    page,
+  }, testInfo) => {
+    const box = await startRun(page, 'e2e-boss-nonlethal-hit');
+    const isMobile = Boolean(testInfo.project.use.isMobile);
+
+    // The boss handle doesn't exist until the formation wave is cleared, so
+    // debugSetBossHp/bossHp/bossSprite* are all no-ops/undefined before this.
+    await page.waitForFunction(
+      () => {
+        window.__FAT_E2E__?.debugKillAllEnemies();
+        return window.__FAT_E2E__?.getSnapshot().run?.bossPhase !== undefined;
+      },
+      { timeout: 10_000, polling: 150 },
+    );
+
+    await page.evaluate(() => window.__FAT_E2E__?.debugSetBossHp(10));
+    const initial = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+    const initialHp = initial?.bossHp ?? 10;
+    expect(initial?.bossSpriteActive).toBe(true);
+    expect(initial?.bossSpriteVisible).toBe(true);
+    expect(initial?.bossBodyEnabled).toBe(true);
+
+    await startAimingAndFiringAtBoss(page, box, isMobile);
+
+    let observed: FatE2ERunSnapshot | null | undefined;
+    for (let i = 0; i < 80; i += 1) {
+      const run = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+      if (typeof run?.bossHp === 'number' && run.bossHp < initialHp && run.bossHp > 0) {
+        observed = run;
+        break;
+      }
+      // Safety valve: the HP=10 buffer should make this unreachable, but
+      // fail loudly rather than hang if it somehow dies before we observe it.
+      if (run?.bossHp === 0 || run?.endReason) break;
+      await keepAimingAtBoss(page, box);
+      await page.waitForTimeout(80);
+    }
+
+    await stopAimingAndFiring(page, isMobile);
+
+    expect(
+      observed,
+      'expected to observe the boss mid-fight after at least one real hit landed, HP still > 0',
+    ).toBeDefined();
+    expect(observed?.bossHp).toBeLessThan(initialHp);
+    expect(observed?.bossHp).toBeGreaterThan(0);
+    expect(observed?.endReason).toBeUndefined();
+    // The regression itself: a non-lethal hit must never hide or disable the boss.
+    expect(observed?.bossSpriteActive).toBe(true);
+    expect(observed?.bossSpriteVisible).toBe(true);
+    expect(observed?.bossBodyEnabled).toBe(true);
+  });
+
+  /**
+   * Human Gate 1 P1 regression, Test 2: proves the boss requires multiple
+   * real hits and stays visible/damageable across all of them, with only
+   * the hit that brings HP to 0 ending the fight — as opposed to the bug,
+   * where the first hit silently ended the boss's ability to take further
+   * damage without actually defeating it.
+   */
+  test('boss takes several real hits to defeat and only the killing hit ends the fight (Human Gate 1 P1 regression, Test 2)', async ({
+    page,
+  }, testInfo) => {
+    const box = await startRun(page, 'e2e-boss-multi-hit');
+    const isMobile = Boolean(testInfo.project.use.isMobile);
+
+    // The boss handle doesn't exist until the formation wave is cleared, so
+    // debugSetBossHp/bossHp/bossSprite* are all no-ops/undefined before this.
+    await page.waitForFunction(
+      () => {
+        window.__FAT_E2E__?.debugKillAllEnemies();
+        return window.__FAT_E2E__?.getSnapshot().run?.bossPhase !== undefined;
+      },
+      { timeout: 10_000, polling: 150 },
+    );
+
+    await page.evaluate(() => window.__FAT_E2E__?.debugSetBossHp(3));
+
+    await startAimingAndFiringAtBoss(page, box, isMobile);
+
+    let sawIntermediateAliveState = false;
+    let cleared = false;
+    for (let i = 0; i < 100 && !cleared; i += 1) {
+      const run = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+      if (run?.endReason === 'CLEAR') {
+        cleared = true;
+        break;
+      }
+      if (typeof run?.bossHp === 'number' && run.bossHp > 0 && run.bossHp < 3) {
+        sawIntermediateAliveState = true;
+        // At every alive intermediate HP, the boss must remain fully present.
+        expect(run.bossSpriteActive).toBe(true);
+        expect(run.bossSpriteVisible).toBe(true);
+        expect(run.bossBodyEnabled).toBe(true);
+      }
+      await keepAimingAtBoss(page, box);
+      await page.waitForTimeout(80);
+    }
+
+    await stopAimingAndFiring(page, isMobile);
+
+    expect(cleared, 'boss fight did not reach Stage Clear within the timeout').toBe(true);
+    expect(
+      sawIntermediateAliveState,
+      'expected to observe at least one intermediate HP state (1 or 2) before defeat — otherwise this test cannot distinguish "3 real hits" from "1 hit that happened to be lethal"',
+    ).toBe(true);
+
+    const finalRun = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+    expect(finalRun?.bossesKilled).toBe(1);
+
+    await waitForScene(page, 'ResultScene', 6000);
   });
 });

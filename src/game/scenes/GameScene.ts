@@ -14,8 +14,9 @@ import { SeededRandom, generateRuntimeSeed } from '../adapters/SeededRandom';
 import { LocalStorageAdapter } from '../adapters/LocalStorageAdapter';
 import { loadSaveData, recordScoreAndRank } from '../systems/PersistenceSystem';
 import { InputSystem } from '../systems/InputSystem';
-import { resolveEnemyHits, resolveFirstPlayerHit } from '../systems/CombatSystem';
+import { pickByIdentity, resolveEnemyHits, resolveFirstPlayerHit } from '../systems/CombatSystem';
 import type { PendingEnemyHit, PendingPlayerHit } from '../systems/CombatSystem';
+import type { ProjectilePayload } from '../entities/Projectile';
 import { WaveSystem } from '../systems/WaveSystem';
 import { activePhaseConfig, applyBossDamage, completeBossIntro } from '../systems/BossSystem';
 import { ensurePlaceholderTextures, TextureKey } from '../entities/textures';
@@ -89,6 +90,9 @@ export class GameScene extends Phaser.Scene {
   private comboText!: Phaser.GameObjects.Text;
   private calorieLabel!: Phaser.GameObjects.Text;
   private calorieBarFill!: Phaser.GameObjects.Rectangle;
+  private bossHpLabel!: Phaser.GameObjects.Text;
+  private bossHpBarBg!: Phaser.GameObjects.Rectangle;
+  private bossHpBarFill!: Phaser.GameObjects.Rectangle;
   private captionText!: Phaser.GameObjects.Text;
   private pauseOverlay!: Phaser.GameObjects.Container;
   private pauseButton!: Phaser.GameObjects.Text;
@@ -158,14 +162,14 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.overlap(
       this.enemyProjectiles,
       this.player.sprite,
-      (proj) => this.onEnemyProjectileHitsPlayer(proj),
+      (a, b) => this.onEnemyProjectileHitsPlayer(a, b),
       undefined,
       this,
     );
     this.physics.add.overlap(
       this.enemiesGroup,
       this.player.sprite,
-      (enemy) => this.onEnemyContactsPlayer(enemy),
+      (a, b) => this.onEnemyContactsPlayer(a, b),
       undefined,
       this,
     );
@@ -205,6 +209,30 @@ export class GameScene extends Phaser.Scene {
       .rectangle(16, 30 + 22, 0, 8, 0x53f6ff)
       .setOrigin(0, 0.5)
       .setDepth(10);
+
+    // Milestone A causal-confirmation UI (not final art): lets a player see
+    // that their shots are actually damaging the boss. Read-only display of
+    // BossState; never decides hitboxes or gameplay outcomes.
+    const bossBarWidth = 220;
+    this.bossHpLabel = this.add
+      .text(LOGICAL_WIDTH / 2, 46, 'KING BURGER', {
+        fontFamily: 'monospace',
+        fontSize: '11px',
+        color: COLOR_UI_MUTED,
+      })
+      .setOrigin(0.5)
+      .setDepth(10)
+      .setVisible(false);
+    this.bossHpBarBg = this.add
+      .rectangle(LOGICAL_WIDTH / 2, 60, bossBarWidth, 8, 0x21102f)
+      .setOrigin(0.5, 0.5)
+      .setDepth(10)
+      .setVisible(false);
+    this.bossHpBarFill = this.add
+      .rectangle(LOGICAL_WIDTH / 2 - bossBarWidth / 2, 60, bossBarWidth, 8, 0xff4f64)
+      .setOrigin(0, 0.5)
+      .setDepth(11)
+      .setVisible(false);
 
     this.pauseButton = this.add
       .text(LOGICAL_WIDTH - 20, 14, '❚❚', {
@@ -264,6 +292,7 @@ export class GameScene extends Phaser.Scene {
     const isRunning = !this.paused && !document.hidden && this.phase !== 'ended';
     this.clock.tick(deltaMs, isRunning);
     this.updateHud();
+    this.updateBossHpBar();
     publishRunSnapshot(this.game, this.buildSnapshot());
 
     if (!isRunning) return;
@@ -531,9 +560,18 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private onPlayerProjectileHitsEnemy(proj: unknown, enemy: unknown): void {
-    const projSprite = proj as Phaser.Physics.Arcade.Sprite;
-    const enemySprite = enemy as Phaser.Physics.Arcade.Sprite;
+  private onPlayerProjectileHitsEnemy(a: unknown, b: unknown): void {
+    // Both sides are Groups here (no single stable "the" enemy to compare
+    // identity against), so discrimination is data-driven: whichever sprite
+    // carries enemy runtime data is the enemy, whichever carries a
+    // player-kind projectile payload is the bullet. Same hardening
+    // principle as the boss/player handlers — never trust argument position.
+    const sprites = [a, b] as Phaser.Physics.Arcade.Sprite[];
+    const enemySprite = sprites.find((s) => s.getData('enemy') !== undefined);
+    const projSprite = sprites.find(
+      (s) => (s.getData('payload') as ProjectilePayload | undefined)?.kind === 'player',
+    );
+    if (!enemySprite || !projSprite || enemySprite === projSprite) return;
     if (!projSprite.active || !enemySprite.active) return;
     this.pendingEnemyHits.push({
       sprite: enemySprite,
@@ -544,14 +582,40 @@ export class GameScene extends Phaser.Scene {
     deactivateProjectile(projSprite);
   }
 
-  private onPlayerProjectileHitsBoss(proj: unknown, boss: unknown): void {
-    const projSprite = proj as Phaser.Physics.Arcade.Sprite;
-    const bossSprite = boss as Phaser.Physics.Arcade.Sprite;
+  /**
+   * P1 regression fix: previously assumed argument 1 was always the
+   * projectile and deactivated it unconditionally — but Arcade Physics does
+   * not guarantee argument order when one side of an overlap is a lone
+   * GameObject (the boss sprite) and the other a Group (playerProjectiles).
+   * In production this deactivated the BOSS sprite on first hit instead of
+   * the bullet: the boss vanished (active=false, visible=false, body
+   * disabled) while its BossState never reached 'dead', so it kept firing
+   * and could never be damaged again. Fixed by identifying each side by
+   * identity/payload, never by position.
+   */
+  private onPlayerProjectileHitsBoss(a: unknown, b: unknown): void {
+    if (!this.boss) return;
+    const bossSpriteRef = this.boss.sprite;
+    const picked = pickByIdentity(
+      a as Phaser.Physics.Arcade.Sprite,
+      b as Phaser.Physics.Arcade.Sprite,
+      (candidate) => candidate === bossSpriteRef,
+    );
+    if (!picked) return;
+    const bossSprite = picked.match;
+    const projSprite = picked.other;
     if (!projSprite.active || !bossSprite.active) return;
+
+    // Defense in depth: only ever consume something that is actually a
+    // player projectile, never the boss itself, regardless of the identity
+    // check above.
+    const payload = projSprite.getData('payload') as ProjectilePayload | undefined;
+    if (payload?.kind !== 'player') return;
+
     // FI-03 section 2.5: "Boss intro中は...射撃ダメージ無効でもよい" — the
     // bullet is still consumed (it visibly "hits" the boss) but deals no
     // damage until the boss is actually in a combat phase.
-    if (!this.boss || this.boss.state.phase === 'intro' || this.boss.state.phase === 'dead') {
+    if (this.boss.state.phase === 'intro' || this.boss.state.phase === 'dead') {
       deactivateProjectile(projSprite);
       return;
     }
@@ -559,18 +623,34 @@ export class GameScene extends Phaser.Scene {
     this.pendingBossHits.push(GameBalance.player.shotDamage);
   }
 
-  private onEnemyProjectileHitsPlayer(proj: unknown): void {
-    const projSprite = proj as Phaser.Physics.Arcade.Sprite;
+  private onEnemyProjectileHitsPlayer(a: unknown, b: unknown): void {
+    const playerSpriteRef = this.player.sprite;
+    const picked = pickByIdentity(
+      a as Phaser.Physics.Arcade.Sprite,
+      b as Phaser.Physics.Arcade.Sprite,
+      (candidate) => candidate === playerSpriteRef,
+    );
+    if (!picked) return;
+    const projSprite = picked.other;
     if (!projSprite.active) return;
-    const payload = projSprite.getData('payload') as { calorie: number } | undefined;
-    this.pendingPlayerHits.push({ calorie: payload?.calorie ?? 0, source: 'bullet' });
+    const payload = projSprite.getData('payload') as ProjectilePayload | undefined;
+    if (payload?.kind !== 'enemy') return;
+    this.pendingPlayerHits.push({ calorie: payload.calorie, source: 'bullet' });
     deactivateProjectile(projSprite);
   }
 
-  private onEnemyContactsPlayer(enemy: unknown): void {
-    const enemySprite = enemy as Phaser.Physics.Arcade.Sprite;
+  private onEnemyContactsPlayer(a: unknown, b: unknown): void {
+    const playerSpriteRef = this.player.sprite;
+    const picked = pickByIdentity(
+      a as Phaser.Physics.Arcade.Sprite,
+      b as Phaser.Physics.Arcade.Sprite,
+      (candidate) => candidate === playerSpriteRef,
+    );
+    if (!picked) return;
+    const enemySprite = picked.other;
     if (!enemySprite.active) return;
-    const runtime = enemySprite.getData('enemy') as EnemyRuntimeData;
+    const runtime = enemySprite.getData('enemy') as EnemyRuntimeData | undefined;
+    if (!runtime) return;
     const def = enemyContent[runtime.enemyId];
     this.pendingPlayerHits.push({ calorie: def.contactCalorie, source: 'contact' });
     deactivateEnemy(enemySprite);
@@ -715,6 +795,24 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
+  /**
+   * Milestone A causal-confirmation UI (see buildHud): visible only once the
+   * boss is actually damageable (post-intro) and hidden again on defeat.
+   * Purely a read of BossState — never influences the hitbox or combat
+   * outcome.
+   */
+  private updateBossHpBar(): void {
+    const boss = this.boss;
+    const shouldShow = Boolean(boss) && boss!.state.phase !== 'intro' && boss!.state.phase !== 'dead';
+    this.bossHpLabel.setVisible(shouldShow);
+    this.bossHpBarBg.setVisible(shouldShow);
+    this.bossHpBarFill.setVisible(shouldShow);
+    if (!shouldShow || !boss) return;
+
+    const ratio = Phaser.Math.Clamp(boss.state.hp / boss.state.maxHp, 0, 1);
+    this.bossHpBarFill.width = 220 * ratio;
+  }
+
   private buildSnapshot(): FatE2ERunSnapshot {
     return {
       score: this.runState.score,
@@ -737,6 +835,9 @@ export class GameScene extends Phaser.Scene {
             bossX: this.boss.sprite.x,
             bossHp: this.boss.state.hp,
             bossMaxHp: this.boss.state.maxHp,
+            bossSpriteActive: this.boss.sprite.active,
+            bossSpriteVisible: this.boss.sprite.visible,
+            bossBodyEnabled: (this.boss.sprite.body as Phaser.Physics.Arcade.Body | null)?.enable ?? false,
           }
         : {}),
     };

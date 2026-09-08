@@ -49,6 +49,28 @@ export function resolveEnemyHits(pending: readonly PendingEnemyHit[]): EnemyHitO
   return outcomes;
 }
 
+/**
+ * Identifies which of two Arcade Physics overlap callback arguments is the
+ * known "target" (e.g. the boss sprite, the player sprite) by identity —
+ * never by argument position. Root cause of the P1 progression bug: Arcade
+ * Physics does not guarantee `overlap(group, singleSprite, cb)` calls `cb`
+ * with `(groupMember, singleSprite)` in that order — when one side is a
+ * lone GameObject and the other a Group, the callback can receive them in
+ * either order. Code that assumed a fixed order (e.g. "argument 1 is always
+ * the projectile") could silently deactivate the wrong sprite. This helper
+ * makes the discrimination order-independent by construction, so no caller
+ * can reintroduce the bug by assuming a position.
+ */
+export function pickByIdentity<T>(
+  a: T,
+  b: T,
+  isMatch: (candidate: T) => boolean,
+): { match: T; other: T } | null {
+  if (isMatch(a)) return { match: a, other: b };
+  if (isMatch(b)) return { match: b, other: a };
+  return null;
+}
+
 export type PendingPlayerHit = { calorie: number; source: 'bullet' | 'contact' };
 
 /**

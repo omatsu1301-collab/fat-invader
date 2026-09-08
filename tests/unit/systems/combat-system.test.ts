@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { resolveEnemyHits, resolveFirstPlayerHit } from '../../../src/game/systems/CombatSystem';
+import {
+  pickByIdentity,
+  resolveEnemyHits,
+  resolveFirstPlayerHit,
+} from '../../../src/game/systems/CombatSystem';
 import type { PendingEnemyHit } from '../../../src/game/systems/CombatSystem';
 import type { EnemyRuntimeData } from '../../../src/game/entities/Enemy';
 
@@ -79,5 +83,36 @@ describe('CombatSystem.resolveFirstPlayerHit', () => {
 
   it('returns null when nothing is queued', () => {
     expect(resolveFirstPlayerHit([], false)).toBeNull();
+  });
+});
+
+/**
+ * Root cause of the Human Gate 1 P1 bug: `onPlayerProjectileHitsBoss`
+ * deactivated whichever argument was passed first, assuming Arcade Physics
+ * always calls the overlap callback as (groupMember, singleSprite). That
+ * assumption is not guaranteed — this proves the fix (identity-based
+ * discrimination) is correct regardless of which order the two arguments
+ * arrive in.
+ */
+describe('CombatSystem.pickByIdentity', () => {
+  const bossSprite = { id: 'boss' };
+  const projSprite = { id: 'proj' };
+  const isBoss = (candidate: typeof bossSprite | typeof projSprite): boolean =>
+    candidate === bossSprite;
+
+  it('finds the match when it is the first argument', () => {
+    const result = pickByIdentity(bossSprite, projSprite, isBoss);
+    expect(result).toEqual({ match: bossSprite, other: projSprite });
+  });
+
+  it('finds the match when it is the second argument (the previously-unhandled order)', () => {
+    const result = pickByIdentity(projSprite, bossSprite, isBoss);
+    expect(result).toEqual({ match: bossSprite, other: projSprite });
+  });
+
+  it('returns null when neither argument matches', () => {
+    const somethingElse = { id: 'other' };
+    const result = pickByIdentity(somethingElse, projSprite, isBoss);
+    expect(result).toBeNull();
   });
 });
