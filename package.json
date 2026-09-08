@@ -1,0 +1,45 @@
+{
+  "name": "fat-invader",
+  "version": "0.1.0",
+  "description": "FATインベーダー — 3-5 minute browser arcade shooter satirizing diet and ranking culture.",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "postbuild": "node scripts/check-no-e2e-bridge.mjs",
+    "build:e2e": "cross-env VITE_E2E=1 vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omatsu1301-collab/fat-invader.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/omatsu1301-collab/fat-invader/issues"
+  },
+  "homepage": "https://github.com/omatsu1301-collab/fat-invader#readme",
+  "dependencies": {
+    "phaser": "^4.2.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.5.0",
+    "cross-env": "^10.1.0",
+    "jsdom": "^29.1.1",
+    "oxlint": "^1.82.0",
+    "prettier": "^3.9.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
+  }
+}

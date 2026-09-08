@@ -1,0 +1,10 @@
+node_modules/
+dist/
+playwright-report/
+test-results/
+.vite/
+*.local
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
