@@ -1,17 +1,10 @@
 import { expect, test } from '@playwright/test';
 
-declare global {
-  interface Window {
-    __FAT_E2E__?: {
-      getSnapshot: () => { sceneKey: string; startPressCount: number };
-    };
-  }
-}
-
 test.describe('Title smoke', () => {
-  test('renders within viewport, raises no errors, and accepts start input', async ({
-    page,
-  }, testInfo) => {
+  test('renders within viewport, raises no errors, and starts gameplay', async (
+    { page },
+    testInfo,
+  ) => {
     const consoleErrors: string[] = [];
     const pageErrors: string[] = [];
     const failedRequests: string[] = [];
@@ -44,11 +37,14 @@ test.describe('Title smoke', () => {
     }
 
     if (box) {
-      // AC-004: start input must be accepted (keyboard on desktop, tap on mobile).
+      // AC-004 / AC-100: start input must be accepted and move into gameplay.
       await canvas.click({ position: { x: box.width / 2, y: box.height * 0.76 } });
     }
 
     await page.waitForFunction(() => (window.__FAT_E2E__?.getSnapshot().startPressCount ?? 0) > 0);
+    await page.waitForFunction(() => window.__FAT_E2E__?.getSnapshot().sceneKey === 'GameScene', {
+      timeout: 2000,
+    });
 
     // AC-005: no console errors, uncaught exceptions, or failed required requests.
     expect(consoleErrors).toEqual([]);
