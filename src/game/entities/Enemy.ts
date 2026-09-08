@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { RandomSource } from '../ports/Random';
 import { enemies, type EnemyId } from '../content/enemies';
 import { DisplayDepth } from '../config/display';
+import { rollEnemyFireDelayMs, rollFormationPhaseOffset } from '../domain/combat-rng';
 import { TextureKey } from './textures';
 
 export type EnemyRuntimeData = {
@@ -11,6 +12,7 @@ export type EnemyRuntimeData = {
   baseY: number;
   spawnedAtMs: number;
   nextFireAtMs: number;
+  lastFireDelayMs: number;
   formationPhaseOffset: number;
 };
 
@@ -43,14 +45,16 @@ export function spawnEnemy(
     (def.spriteSize - def.spriteSize * hitboxRatio) / 2,
   );
 
+  const fireDelayMs = rollEnemyFireDelayMs(random, def.fireRateMs, def.fireIntervalJitterMs);
   const runtime: EnemyRuntimeData = {
     enemyId,
     hp: def.maxHp,
     baseX: x,
     baseY: y,
     spawnedAtMs: nowMs,
-    nextFireAtMs: nowMs + def.fireRateMs + random.nextInt(0, def.fireIntervalJitterMs),
-    formationPhaseOffset: random.next() * Math.PI * 2,
+    nextFireAtMs: nowMs + fireDelayMs,
+    lastFireDelayMs: fireDelayMs,
+    formationPhaseOffset: rollFormationPhaseOffset(random),
   };
   sprite.setData('enemy', runtime);
   sprite.setDepth(DisplayDepth.actor);

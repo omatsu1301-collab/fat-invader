@@ -32,6 +32,9 @@ export type FatE2ERunSnapshot = {
   shakePx?: number;
   reducedEffects?: boolean;
   screenShake?: 'full' | 'reduced' | 'off';
+  /** Clock-independent gameplay RNG fingerprint (fire delay + formation). */
+  enemyFireDelayMs?: number[];
+  enemyFormationOffsets?: number[];
 };
 
 export type FatE2ESnapshot = {
@@ -60,6 +63,8 @@ export type E2EDebugHooks = {
     screenShake?: 'full' | 'reduced' | 'off';
   }) => void;
   debugSetCombo: (combo: number) => void;
+  debugSaturateVfxCaps: () => void;
+  debugPlayDisplayKill: () => void;
 };
 
 export type FatE2EBridge = {
@@ -73,6 +78,8 @@ export type FatE2EBridge = {
     screenShake?: 'full' | 'reduced' | 'off';
   }) => void;
   debugSetCombo: (combo: number) => void;
+  debugSaturateVfxCaps: () => void;
+  debugPlayDisplayKill: () => void;
 };
 
 declare global {
@@ -128,5 +135,7 @@ export function installE2EBridge(game: Phaser.Game): void {
     debugApplyPlayerCalorie: (amount: number) => getHooks()?.debugApplyPlayerCalorie(amount),
     debugSetFeelSettings: (settings) => getHooks()?.debugSetFeelSettings(settings),
     debugSetCombo: (combo) => getHooks()?.debugSetCombo(combo),
+    debugSaturateVfxCaps: () => getHooks()?.debugSaturateVfxCaps(),
+    debugPlayDisplayKill: () => getHooks()?.debugPlayDisplayKill(),
   };
 }

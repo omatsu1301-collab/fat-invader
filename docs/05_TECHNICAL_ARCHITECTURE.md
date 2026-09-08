@@ -177,7 +177,9 @@ Pauseは別Scene overlayまたはGameSceneの状態として実装できるが�
 
 - Production seed: 起動時のsecure-enough random stringでよい。
 - Test seed: 明示文字列。
-- Wave微調整、drop、decorative variationは注入されたRandomのみ使う。
+- Wave微調整、drop、fire jitter、formationは `gameplayRandom` のみ使う。
+- FeedbackSystemの装飾（particle方向、fragment数、shake offset）は `vfxRandom` のみ使う。
+- 両streamは同一run seedから派生し、互いに消費数を共有しない。Full / Reduced / OffでVFXの乱数消費が変わっても敵発射時刻は一致する。
 - `Math.random()` の直接使用は禁止。
 
 ## 7. Data-driven Content

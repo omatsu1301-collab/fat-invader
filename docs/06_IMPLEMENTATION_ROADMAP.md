@@ -167,7 +167,7 @@ Vertical Sliceを「動く試作品」から「触って気持ちいい作品」
 
 1. Art inventoryとasset pipelineを確定。詳細は `docs/09_ART_ASSET_INVENTORY.md`。**本stepは部分完了:** Art inventory自体、素材制作方針(強化placeholder先行)、texture/audio keyの差し替え可能設計方針は確定済み。asset-manifest.ts、素材license記録、BGM/SE音源供給方法は未確定で、step 7(Sound mixとvoice limit)着手直前までに確定すればよい。この未確定分がstep 2〜6の着手を妨げることはない。
 2. 単発shot / hit / killを完成。**本stepは実装済み (Human Gate 2待ち):** flash / hit stop / explosion / fragment / score popup。最終ラスター素材なし。
-3. 連続killでeffect capを検証。**本stepは実装済み (Human Gate 2待ち):** particle 320 / fragment 48 / popup 20。cap到達時は装飾のみ破棄し、gameplay弾は維持。
+3. 連続killでeffect capを検証。**本stepは実装済み (Human Gate 2待ち):** particle 320 / fragment 48 / popup 20。cap到達時は装飾のみ破棄し、gameplay弾は維持。gameplayRandomとvfxRandomは分離済み（Codex監査、VFX消費数が敵発射を変えない）。
 4. Player hit / FAT OVERを完成。**本stepは実装済み (Human Gate 2待ち):** 被弾vignette / shake / FAT OVER pose。BGM/SEなし。
 5. Combo escalation。**本stepは実装済み (Human Gate 2待ち):** tier callout ≤380ms、HUD上部。通常Waveの最大comboは8のため、25/50の確認はE2E debugまたは試遊手順の補助を使う。
 6. Boss phase / death演出。**本stepは実装済み (Human Gate 2待ち):** phase2 shake、death burst / shockwave / 残弾spark化、`deathDurationMs`後にSTAGE CLEAR。Slow-moは戦闘結果を変えないよう未適用。

@@ -10,7 +10,8 @@ import type { RunEndReason, RunState } from '../domain/run-state';
 import { evaluateRun } from '../domain/evaluation';
 import { stageClearBonus, bossNoHitBonus } from '../domain/scoring';
 import { PhaserClock } from '../adapters/PhaserClock';
-import { SeededRandom, generateRuntimeSeed } from '../adapters/SeededRandom';
+import { SeededRandom, createRunRandomSources, generateRuntimeSeed } from '../adapters/SeededRandom';
+import { rollEnemyFireDelayMs } from '../domain/combat-rng';
 import { LocalStorageAdapter } from '../adapters/LocalStorageAdapter';
 import { loadSaveData, recordScoreAndRank } from '../systems/PersistenceSystem';
 import { InputSystem } from '../systems/InputSystem';
@@ -67,7 +68,8 @@ const COLOR_BURN_LIME = '#B9FF4A';
 
 export class GameScene extends Phaser.Scene {
   private clock = new PhaserClock();
-  private random!: SeededRandom;
+  private gameplayRandom!: SeededRandom;
+  private vfxRandom!: SeededRandom;
   private storage = new LocalStorageAdapter();
   private eventBus = new GameEventBus();
   private inputSystem!: InputSystem;
@@ -119,7 +121,9 @@ export class GameScene extends Phaser.Scene {
 
     const seedOverride = this.registry.get(E2E_SEED_REGISTRY_KEY) as string | undefined;
     const seed = seedOverride ?? generateRuntimeSeed();
-    this.random = new SeededRandom(seed);
+    const rng = createRunRandomSources(seed);
+    this.gameplayRandom = rng.gameplayRandom;
+    this.vfxRandom = rng.vfxRandom;
     this.runState = createRunState(seed, 0);
     this.comboState = setFrozen(freshComboState(), true, 0);
     this.phase = 'stageIntro';
@@ -187,7 +191,7 @@ export class GameScene extends Phaser.Scene {
     this.feedback = new FeedbackSystem(
       this,
       this.feelSettings,
-      this.random,
+      this.vfxRandom,
       this.eventBus,
       () => ({ x: this.player.sprite.x, y: this.player.sprite.y }),
       () => (this.boss ? { x: this.boss.sprite.x, y: this.boss.sprite.y } : null),
@@ -428,7 +432,7 @@ export class GameScene extends Phaser.Scene {
       const spacingX = 90;
       const x = 60 + cmd.gridX * spacingX;
       const y = 110 + cmd.gridY * 60;
-      spawnEnemy(this.enemiesGroup, cmd.enemyId, x, y, nowMs, this.random);
+      spawnEnemy(this.enemiesGroup, cmd.enemyId, x, y, nowMs, this.gameplayRandom);
     }
 
     const descentPxPerSec =
@@ -467,7 +471,9 @@ export class GameScene extends Phaser.Scene {
       bulletDef.speedPxPerSec,
       { kind: 'enemy', damage: 0, calorie: bulletDef.calorie, bulletId: bulletDef.id },
     );
-    runtime.nextFireAtMs = nowMs + def.fireRateMs + this.random.nextInt(0, def.fireIntervalJitterMs);
+    const delay = rollEnemyFireDelayMs(this.gameplayRandom, def.fireRateMs, def.fireIntervalJitterMs);
+    runtime.lastFireDelayMs = delay;
+    runtime.nextFireAtMs = nowMs + delay;
   }
 
   private despawnEnemyOffscreen(sprite: Phaser.Physics.Arcade.Sprite): void {
@@ -882,6 +888,8 @@ export class GameScene extends Phaser.Scene {
       activePlayerProjectiles: countActive(this.playerProjectiles),
       activeEnemyProjectiles: countActive(this.enemyProjectiles),
       activeEnemies: countActive(this.enemiesGroup),
+      enemyFireDelayMs: this.collectEnemyFireDelays(),
+      enemyFormationOffsets: this.collectEnemyFormationOffsets(),
       ...this.feelSnapshot(),
       ...(this.runState.endReason ? { endReason: this.runState.endReason } : {}),
       ...(this.boss
@@ -940,6 +948,13 @@ export class GameScene extends Phaser.Scene {
         };
         this.eventBus.emit({ type: 'COMBO_TIER_CHANGED', combo: next, multiplier: 1 });
       },
+      debugSaturateVfxCaps: (): void => {
+        this.feedback.saturateDecorativeCapsForDebug();
+        publishRunSnapshot(this.game, this.buildSnapshot());
+      },
+      debugPlayDisplayKill: (): void => {
+        this.feedback.playDisplayKillForDebug(this.player.sprite.x, this.player.sprite.y);
+      },
     };
   }
 
@@ -950,6 +965,30 @@ export class GameScene extends Phaser.Scene {
       this.feedback.spawnSpark(sprite.x, sprite.y);
       deactivateProjectile(sprite);
     }
+  }
+
+  private collectEnemyFireDelays(): number[] {
+    const delays: number[] = [];
+    for (const child of this.enemiesGroup.children) {
+      const sprite = child as Phaser.Physics.Arcade.Sprite;
+      if (!sprite.active) continue;
+      const runtime = sprite.getData('enemy') as EnemyRuntimeData | undefined;
+      if (runtime) delays.push(runtime.lastFireDelayMs);
+    }
+    delays.sort((a, b) => a - b);
+    return delays;
+  }
+
+  private collectEnemyFormationOffsets(): number[] {
+    const offsets: number[] = [];
+    for (const child of this.enemiesGroup.children) {
+      const sprite = child as Phaser.Physics.Arcade.Sprite;
+      if (!sprite.active) continue;
+      const runtime = sprite.getData('enemy') as EnemyRuntimeData | undefined;
+      if (runtime) offsets.push(runtime.formationPhaseOffset);
+    }
+    offsets.sort((a, b) => a - b);
+    return offsets;
   }
 
   private feelSnapshot(): {

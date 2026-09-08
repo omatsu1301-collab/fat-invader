@@ -85,6 +85,76 @@ test.describe('Game Feel (Milestone B steps 2-6)', () => {
     expect(reduced?.shakePx ?? 0).toBe(0);
   });
 
+  test('Full / Reduced / Off keep the same enemy fire schedule after VFX (AC-201)', async ({
+    page,
+  }) => {
+    const seed = 'e2e-feel-rng-streams';
+    const profiles = [
+      { reducedEffects: false, screenShake: 'full' as const },
+      { reducedEffects: true, screenShake: 'reduced' as const },
+      { reducedEffects: false, screenShake: 'off' as const },
+    ];
+    const fingerprints: { delays: number[]; offsets: number[] }[] = [];
+
+    for (const settings of profiles) {
+      await startRun(page, seed);
+      await page.evaluate((next) => window.__FAT_E2E__?.debugSetFeelSettings(next), settings);
+      await page.evaluate(() => {
+        for (let i = 0; i < 8; i += 1) window.__FAT_E2E__?.debugPlayDisplayKill();
+      });
+      await page.waitForFunction(
+        () => (window.__FAT_E2E__?.getSnapshot().run?.activeEnemies ?? 0) >= 8,
+        { timeout: 8_000 },
+      );
+      const run = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+      expect(run?.activeEnemies).toBeGreaterThanOrEqual(8);
+      expect(run?.enemyFireDelayMs?.length).toBeGreaterThanOrEqual(8);
+      fingerprints.push({
+        delays: run?.enemyFireDelayMs ?? [],
+        offsets: run?.enemyFormationOffsets ?? [],
+      });
+    }
+
+    expect(fingerprints).toHaveLength(3);
+    expect(fingerprints[0]).toEqual(fingerprints[1]);
+    expect(fingerprints[0]).toEqual(fingerprints[2]);
+  });
+
+  test('enemy bullets still spawn and land or dodge after VFX cap (AC-204)', async ({ page }) => {
+    await startRun(page, 'e2e-feel-cap-fire');
+    await page.evaluate(() =>
+      window.__FAT_E2E__?.debugSetFeelSettings({ reducedEffects: false, screenShake: 'full' }),
+    );
+    await page.waitForFunction(
+      () => (window.__FAT_E2E__?.getSnapshot().run?.activeEnemies ?? 0) >= 8,
+      { timeout: 8_000 },
+    );
+    await page.evaluate(() => window.__FAT_E2E__?.debugSaturateVfxCaps());
+    await page.waitForFunction(
+      () => (window.__FAT_E2E__?.getSnapshot().run?.activeParticles ?? 0) >= 320,
+      { timeout: 2_000 },
+    );
+    const atCap = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+    expect(atCap?.activeParticles).toBe(320);
+    expect(atCap?.activeFragments).toBe(48);
+
+    await page.waitForFunction(
+      () => {
+        const run = window.__FAT_E2E__?.getSnapshot().run;
+        if (!run) return false;
+        const landedOrDodged = (run.calorie ?? 0) + (run.caloriesDodged ?? 0);
+        return (run.activeEnemyProjectiles ?? 0) >= 1 && landedOrDodged > 0;
+      },
+      { timeout: 10_000 },
+    );
+
+    const after = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+    expect(after?.activeParticles).toBe(320);
+    expect(after?.activeEnemyProjectiles ?? 0).toBeGreaterThan(0);
+    expect((after?.calorie ?? 0) + (after?.caloriesDodged ?? 0)).toBeGreaterThan(0);
+    expect(after?.activeEnemies).toBeGreaterThanOrEqual(8);
+  });
+
   test('player hit and FAT OVER still reach Result with no page errors (AC-115)', async ({
     page,
   }) => {

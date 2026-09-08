@@ -76,7 +76,7 @@ export class FeedbackSystem {
   constructor(
     private readonly scene: Phaser.Scene,
     private settings: FeelSettings,
-    private readonly random: RandomSource,
+    private readonly vfxRandom: RandomSource,
     onEvent: { on: (listener: (event: GameEvent) => void) => () => void },
     private readonly playerXY: () => { x: number; y: number },
     private readonly bossXY: () => { x: number; y: number } | null,
@@ -171,6 +171,50 @@ export class FeedbackSystem {
     this.activateParticle(this.particles, GameBalance.pools.particle, x, y, 0xfff0d2, 40, 80, 180);
   }
 
+  /**
+   * E2E / debug only: fill decorative pools to cap with long-lived slots so
+   * tests can prove gameplay bullets still spawn (AC-204). Never touches
+   * projectile groups.
+   */
+  saturateDecorativeCapsForDebug(): void {
+    const holdMs = 60_000;
+    holdLiveSlots(this.particles, holdMs);
+    holdLiveSlots(this.fragments, holdMs);
+    while (countLive(this.particles) < GameBalance.pools.particle) {
+      this.activateParticle(
+        this.particles,
+        GameBalance.pools.particle,
+        200,
+        180,
+        0xffb33d,
+        0,
+        0,
+        holdMs,
+      );
+    }
+    while (countLive(this.fragments) < GameBalance.pools.fragment) {
+      this.activateParticle(
+        this.fragments,
+        GameBalance.pools.fragment,
+        200,
+        180,
+        0xffb33d,
+        0,
+        0,
+        holdMs,
+        TextureKey.fragment,
+      );
+    }
+  }
+
+  /**
+   * E2E / debug only: consume the same VFX draws as a real kill without
+   * writing RunState or despawning enemies.
+   */
+  playDisplayKillForDebug(x: number, y: number): void {
+    this.playKill(x, y, 0, 1);
+  }
+
   destroy(): void {
     this.unsub?.();
     this.unsub = null;
@@ -224,8 +268,8 @@ export class FeedbackSystem {
         x,
         y,
         0x53f6ff,
-        -40 + this.random.next() * 80,
-        -180 - this.random.next() * 80,
+        -40 + this.vfxRandom.next() * 80,
+        -180 - this.vfxRandom.next() * 80,
         120,
       );
     }
@@ -246,9 +290,9 @@ export class FeedbackSystem {
   private spawnKillBurst(x: number, y: number): void {
     const particleN = killParticleCount(this.settings);
     for (let i = 0; i < particleN; i += 1) {
-      const angle = this.random.next() * Math.PI * 2;
-      const speed = 80 + this.random.next() * 160;
-      const tint = PARTICLE_TINTS[this.random.nextInt(0, PARTICLE_TINTS.length - 1)] ?? 0xffb33d;
+      const angle = this.vfxRandom.next() * Math.PI * 2;
+      const speed = 80 + this.vfxRandom.next() * 160;
+      const tint = PARTICLE_TINTS[this.vfxRandom.nextInt(0, PARTICLE_TINTS.length - 1)] ?? 0xffb33d;
       this.activateParticle(
         this.particles,
         GameBalance.pools.particle,
@@ -260,10 +304,10 @@ export class FeedbackSystem {
         GameBalance.feel.particleLifetimeMs,
       );
     }
-    const fragments = killFragmentCount(this.settings, this.random.next());
+    const fragments = killFragmentCount(this.settings, this.vfxRandom.next());
     for (let i = 0; i < fragments; i += 1) {
-      const angle = this.random.next() * Math.PI * 2;
-      const speed = 60 + this.random.next() * 90;
+      const angle = this.vfxRandom.next() * Math.PI * 2;
+      const speed = 60 + this.vfxRandom.next() * 90;
       this.activateParticle(
         this.fragments,
         GameBalance.pools.fragment,
@@ -467,8 +511,8 @@ export class FeedbackSystem {
       return;
     }
     this.shakeRemainingMs -= dtMs;
-    const ox = (this.random.next() * 2 - 1) * this.shakePx;
-    const oy = (this.random.next() * 2 - 1) * this.shakePx;
+    const ox = (this.vfxRandom.next() * 2 - 1) * this.shakePx;
+    const oy = (this.vfxRandom.next() * 2 - 1) * this.shakePx;
     this.scene.cameras.main.scrollX = ox;
     this.scene.cameras.main.scrollY = oy;
     this.shakeApplied = true;
@@ -497,6 +541,14 @@ function countLive(pool: readonly { live: boolean }[]): number {
     if (slot.live) n += 1;
   }
   return n;
+}
+
+function holdLiveSlots(pool: readonly ParticleSlot[], holdMs: number): void {
+  for (const slot of pool) {
+    if (!slot.live) continue;
+    slot.lifeMs = holdMs;
+    slot.maxLifeMs = holdMs;
+  }
 }
 
 function comboFallbackCallout(combo: number): string | null {

@@ -27,6 +27,7 @@ function runtimeFor(hp: number): EnemyRuntimeData {
     baseY: 0,
     spawnedAtMs: 0,
     nextFireAtMs: 0,
+    lastFireDelayMs: 0,
     formationPhaseOffset: 0,
   };
 }
