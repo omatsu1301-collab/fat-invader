@@ -19,8 +19,12 @@ import type { PendingEnemyHit, PendingPlayerHit } from '../systems/CombatSystem'
 import type { ProjectilePayload } from '../entities/Projectile';
 import { WaveSystem } from '../systems/WaveSystem';
 import { activePhaseConfig, applyBossDamage, completeBossIntro } from '../systems/BossSystem';
+import { FeedbackSystem } from '../systems/FeedbackSystem';
+import { DisplayDepth } from '../config/display';
+import { DEFAULT_FEEL_SETTINGS, type FeelSettings } from '../domain/feel';
 import { ensurePlaceholderTextures, TextureKey } from '../entities/textures';
 import {
+  applyFatOverPose,
   applyHitFlash,
   createPlayer,
   isInvulnerable,
@@ -49,6 +53,7 @@ type Phase =
   | 'bossWarning'
   | 'bossIntro'
   | 'bossActive'
+  | 'bossDeath'
   | 'stageClear'
   | 'ended';
 
@@ -96,6 +101,8 @@ export class GameScene extends Phaser.Scene {
   private captionText!: Phaser.GameObjects.Text;
   private pauseOverlay!: Phaser.GameObjects.Container;
   private pauseButton!: Phaser.GameObjects.Text;
+  private feedback!: FeedbackSystem;
+  private feelSettings: FeelSettings = DEFAULT_FEEL_SETTINGS;
 
   private readonly onVisibilityChange = (): void => {
     if (document.hidden && !this.paused && this.phase !== 'ended') {
@@ -124,6 +131,7 @@ export class GameScene extends Phaser.Scene {
     this.pendingEnemyHits = [];
     this.pendingPlayerHits = [];
     this.pendingBossHits = [];
+    this.feelSettings = toFeelSettings(loadSaveData(this.storage).settings);
 
     ensurePlaceholderTextures(this);
     this.cameras.main.setBackgroundColor('#090615');
@@ -176,7 +184,17 @@ export class GameScene extends Phaser.Scene {
 
     this.inputSystem = new InputSystem(this, isMobileViewport());
 
+    this.feedback = new FeedbackSystem(
+      this,
+      this.feelSettings,
+      this.random,
+      this.eventBus,
+      () => ({ x: this.player.sprite.x, y: this.player.sprite.y }),
+      () => (this.boss ? { x: this.boss.sprite.x, y: this.boss.sprite.y } : null),
+    );
+
     this.buildHud();
+    this.lockHudToCamera();
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
@@ -189,7 +207,7 @@ export class GameScene extends Phaser.Scene {
   private buildHud(): void {
     this.scoreText = this.add
       .text(16, 12, 'SCORE 0', { fontFamily: 'monospace', fontSize: '16px', color: COLOR_MILK_CREAM })
-      .setDepth(10);
+      .setDepth(DisplayDepth.hud);
 
     this.comboText = this.add
       .text(LOGICAL_WIDTH / 2, 12, '', {
@@ -198,17 +216,21 @@ export class GameScene extends Phaser.Scene {
         color: COLOR_BURN_LIME,
       })
       .setOrigin(0.5, 0)
-      .setDepth(10);
+      .setDepth(DisplayDepth.hud);
 
     this.calorieLabel = this.add
       .text(16, 34, 'CALORIE 0', { fontFamily: 'monospace', fontSize: '12px', color: COLOR_UI_MUTED })
-      .setDepth(10);
+      .setDepth(DisplayDepth.hud);
 
-    this.add.rectangle(16, 30 + 22, 140, 8, 0x21102f).setOrigin(0, 0.5).setDepth(10);
+    this.add
+      .rectangle(16, 30 + 22, 140, 8, 0x21102f)
+      .setOrigin(0, 0.5)
+      .setDepth(DisplayDepth.hud)
+      .setScrollFactor(0);
     this.calorieBarFill = this.add
       .rectangle(16, 30 + 22, 0, 8, 0x53f6ff)
       .setOrigin(0, 0.5)
-      .setDepth(10);
+      .setDepth(DisplayDepth.hud);
 
     // Milestone A causal-confirmation UI (not final art): lets a player see
     // that their shots are actually damaging the boss. Read-only display of
@@ -221,17 +243,17 @@ export class GameScene extends Phaser.Scene {
         color: COLOR_UI_MUTED,
       })
       .setOrigin(0.5)
-      .setDepth(10)
+      .setDepth(DisplayDepth.hud)
       .setVisible(false);
     this.bossHpBarBg = this.add
       .rectangle(LOGICAL_WIDTH / 2, 60, bossBarWidth, 8, 0x21102f)
       .setOrigin(0.5, 0.5)
-      .setDepth(10)
+      .setDepth(DisplayDepth.hud)
       .setVisible(false);
     this.bossHpBarFill = this.add
       .rectangle(LOGICAL_WIDTH / 2 - bossBarWidth / 2, 60, bossBarWidth, 8, 0xff4f64)
       .setOrigin(0, 0.5)
-      .setDepth(11)
+      .setDepth(DisplayDepth.hud + 1)
       .setVisible(false);
 
     this.pauseButton = this.add
@@ -241,7 +263,7 @@ export class GameScene extends Phaser.Scene {
         color: COLOR_MILK_CREAM,
       })
       .setOrigin(1, 0)
-      .setDepth(10)
+      .setDepth(DisplayDepth.hud)
       .setInteractive({ useHandCursor: true });
     this.pauseButton.on('pointerdown', () => this.togglePause());
 
@@ -253,9 +275,9 @@ export class GameScene extends Phaser.Scene {
         align: 'center',
       })
       .setOrigin(0.5)
-      .setDepth(20);
+      .setDepth(DisplayDepth.caption);
 
-    this.pauseOverlay = this.add.container(0, 0).setDepth(30).setVisible(false);
+    this.pauseOverlay = this.add.container(0, 0).setDepth(DisplayDepth.pause).setVisible(false);
     const overlayBg = this.add
       .rectangle(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT, 0x090615, 0.7)
       .setOrigin(0, 0);
@@ -283,19 +305,41 @@ export class GameScene extends Phaser.Scene {
     this.captionText.setVisible(false);
   }
 
+  private lockHudToCamera(): void {
+    const hud = [
+      this.scoreText,
+      this.comboText,
+      this.calorieLabel,
+      this.calorieBarFill,
+      this.bossHpLabel,
+      this.bossHpBarBg,
+      this.bossHpBarFill,
+      this.pauseButton,
+      this.captionText,
+      this.pauseOverlay,
+    ];
+    for (const obj of hud) {
+      obj.setScrollFactor(0);
+    }
+  }
+
   update(_time: number, deltaMs: number): void {
     const intent = this.inputSystem.poll();
     if (intent.pauseRequested) {
       this.togglePause();
     }
 
-    const isRunning = !this.paused && !document.hidden && this.phase !== 'ended';
-    this.clock.tick(deltaMs, isRunning);
+    const simRunning = !this.paused && !document.hidden && this.phase !== 'ended';
+    const displayRunning = !this.paused && !document.hidden;
+    this.feedback.tick(Math.min(Math.max(deltaMs, 0), 50), displayRunning);
+
+    const hitStopped = this.feedback.isHitStopped();
+    this.clock.tick(deltaMs, simRunning && !hitStopped);
     this.updateHud();
     this.updateBossHpBar();
     publishRunSnapshot(this.game, this.buildSnapshot());
 
-    if (!isRunning) return;
+    if (!simRunning || hitStopped) return;
 
     const nowMs = this.clock.nowMs();
     const dt = this.clock.lastDeltaMs();
@@ -347,6 +391,11 @@ export class GameScene extends Phaser.Scene {
         break;
       case 'bossActive':
         this.updateBossActive(nowMs, dt);
+        break;
+      case 'bossDeath':
+        if (nowMs - this.phaseStartedAtMs >= GameBalance.boss.kingBurgerMini.deathDurationMs) {
+          this.enterPhase('stageClear', nowMs);
+        }
         break;
       case 'stageClear':
       case 'ended':
@@ -694,8 +743,11 @@ export class GameScene extends Phaser.Scene {
       }
       if (result.defeated) {
         disableBossHitbox(this.boss);
+        this.convertEnemyBulletsToSparks();
         this.applyEvent({ type: 'BOSS_DEFEATED', bossId: this.boss.bossId });
-        this.enterPhase('stageClear', nowMs);
+        this.comboState = setFrozen(this.comboState, true, nowMs);
+        this.phase = 'bossDeath';
+        this.phaseStartedAtMs = nowMs;
       }
     }
 
@@ -732,10 +784,8 @@ export class GameScene extends Phaser.Scene {
 
   private onRunEnded(reason: RunEndReason): void {
     this.phase = 'ended';
-    // Freeze all motion/collision immediately so residual enemy bullets (or
-    // a boss corpse) can never register a hit after the run has concluded.
-    this.physics.world.pause();
     if (reason === 'FAT_OVER') {
+      applyFatOverPose(this.player);
       this.showCaption('FAT OVER\n満腹につき、いったん帰還。');
     }
 
@@ -760,6 +810,8 @@ export class GameScene extends Phaser.Scene {
 
     const { isNewHighScore } = recordScoreAndRank(this.storage, saveData, this.runState.score, rank);
 
+    publishRunSnapshot(this.game, this.buildSnapshot());
+
     this.time.delayedCall(1600, () => {
       this.scene.start('ResultScene', {
         runState: this.runState,
@@ -777,6 +829,7 @@ export class GameScene extends Phaser.Scene {
       this.physics.world.pause();
     } else {
       this.physics.world.resume();
+      this.feedback.clearHitStop();
     }
     this.pauseOverlay.setVisible(this.paused);
   }
@@ -828,6 +881,8 @@ export class GameScene extends Phaser.Scene {
       shutdownListenerCount: this.events.listenerCount(Phaser.Scenes.Events.SHUTDOWN),
       activePlayerProjectiles: countActive(this.playerProjectiles),
       activeEnemyProjectiles: countActive(this.enemyProjectiles),
+      activeEnemies: countActive(this.enemiesGroup),
+      ...this.feelSnapshot(),
       ...(this.runState.endReason ? { endReason: this.runState.endReason } : {}),
       ...(this.boss
         ? {
@@ -869,10 +924,55 @@ export class GameScene extends Phaser.Scene {
       debugApplyPlayerCalorie: (amount: number): void => {
         this.pendingPlayerHits.push({ calorie: amount, source: 'contact' });
       },
+      debugSetFeelSettings: (settings): void => {
+        this.feelSettings = {
+          reducedEffects: settings.reducedEffects ?? this.feelSettings.reducedEffects,
+          screenShake: settings.screenShake ?? this.feelSettings.screenShake,
+        };
+        this.feedback.setSettings(this.feelSettings);
+      },
+      debugSetCombo: (combo): void => {
+        const next = Math.max(0, Math.floor(combo));
+        this.runState = {
+          ...this.runState,
+          combo: next,
+          maxCombo: Math.max(this.runState.maxCombo, next),
+        };
+        this.eventBus.emit({ type: 'COMBO_TIER_CHANGED', combo: next, multiplier: 1 });
+      },
+    };
+  }
+
+  private convertEnemyBulletsToSparks(): void {
+    for (const child of this.enemyProjectiles.children) {
+      const sprite = child as Phaser.Physics.Arcade.Sprite;
+      if (!sprite.active) continue;
+      this.feedback.spawnSpark(sprite.x, sprite.y);
+      deactivateProjectile(sprite);
+    }
+  }
+
+  private feelSnapshot(): {
+    activeParticles: number;
+    activeFragments: number;
+    activeScorePopups: number;
+    shakePx: number;
+    reducedEffects: boolean;
+    screenShake: FeelSettings['screenShake'];
+  } {
+    const tel = this.feedback.telemetry();
+    return {
+      activeParticles: tel.activeParticles,
+      activeFragments: tel.activeFragments,
+      activeScorePopups: tel.activeScorePopups,
+      shakePx: tel.shakePx,
+      reducedEffects: this.feelSettings.reducedEffects,
+      screenShake: this.feelSettings.screenShake,
     };
   }
 
   private handleShutdown(): void {
+    this.feedback.destroy();
     this.inputSystem.destroy();
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.time.removeAllEvents();
@@ -892,4 +992,14 @@ function countActive(group: Phaser.Physics.Arcade.Group): number {
     if ((child as Phaser.Physics.Arcade.Sprite).active) count += 1;
   }
   return count;
+}
+
+function toFeelSettings(settings: {
+  reducedEffects: boolean;
+  screenShake: FeelSettings['screenShake'];
+}): FeelSettings {
+  return {
+    reducedEffects: settings.reducedEffects,
+    screenShake: settings.screenShake,
+  };
 }

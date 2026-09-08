@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { RandomSource } from '../ports/Random';
 import { enemies, type EnemyId } from '../content/enemies';
+import { DisplayDepth } from '../config/display';
 import { TextureKey } from './textures';
 
 export type EnemyRuntimeData = {
@@ -52,6 +53,7 @@ export function spawnEnemy(
     formationPhaseOffset: random.next() * Math.PI * 2,
   };
   sprite.setData('enemy', runtime);
+  sprite.setDepth(DisplayDepth.actor);
   return sprite;
 }
 

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { bosses, type BossId } from '../content/bosses';
 import { createBossState, type BossState } from '../domain/boss';
+import { DisplayDepth } from '../config/display';
 import { TextureKey } from './textures';
 
 export type BossHandle = {
@@ -25,6 +26,7 @@ export function spawnBoss(
 ): BossHandle {
   const def = bosses[bossId];
   const sprite = scene.physics.add.sprite(x, y, TEXTURE_BY_BOSS[bossId]);
+  sprite.setDepth(DisplayDepth.actor);
   const body = sprite.body as Phaser.Physics.Arcade.Body;
   body.setSize(def.spriteWidth * 0.85, def.spriteHeight * 0.85);
   body.setOffset(def.spriteWidth * 0.075, def.spriteHeight * 0.075);

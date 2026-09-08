@@ -105,11 +105,51 @@ export const GameBalance = {
     enemyProjectile: 220,
     normalEnemy: 40,
     scorePopup: 20,
+    particle: 320,
+    fragment: 48,
   },
 
   playfield: {
     topInset: 48,
     bottomInset: 84,
+  },
+
+  /**
+   * Milestone B Game Feel budgets (FI-04 §8, FI-03 §12). Display-only:
+   * changing these must never alter score, damage, CALORIE, Boss HP, or
+   * stage progression. Hit-stop duration is applied as a simulation freeze
+   * for every settings profile so Reduced / Shake Off keep identical combat.
+   */
+  feel: {
+    flashDurationMs: 32,
+    flashAlpha: 0.85,
+    flashAlphaReduced: 0.3,
+    killParticles: 16,
+    killParticlesReduced: 6,
+    killFragmentsMin: 2,
+    killFragmentsMax: 5,
+    particleLifetimeMs: 250,
+    fragmentLifetimeMs: 250,
+    scorePopupLifetimeMs: 450,
+    scorePopupRisePxPerSec: 70,
+    muzzleParticles: 3,
+    muzzleParticlesReduced: 1,
+    comboCalloutDurationMs: 380,
+    playerHitVignetteMs: 90,
+    bossDeathBurstCount: 8,
+    bossDeathShockwaves: 2,
+    shake: {
+      normalKillPx: 2.5,
+      normalKillMs: 70,
+      playerHitPx: 4,
+      playerHitMs: 100,
+      bossPhasePx: 3,
+      bossPhaseMs: 120,
+      bossDeathPx: 6,
+      bossDeathMs: 250,
+      reducedScale: 0.25,
+      comboTierBonusPx: 1.5,
+    },
   },
 } as const;
 
