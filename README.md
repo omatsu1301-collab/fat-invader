@@ -6,7 +6,7 @@
 
 ## Status
 
-**Phase 0 — Repository Bootstrap.** Boot/Title の骨格のみ実装済み。ゲームプレイは Milestone A 以降で追加される。
+**Milestone A — Vertical Slice.** Title → Play → 1 Stage（FRY SCOUT 編隊 → KING BURGER 簡易ボス）→ Stage Clear / FAT OVER → Result → Retry が一本のRunとして通しで遊べる。仮素材・図形ベース。Human Gate 1（採用判断）待ち。
 
 ## Requirements
 
@@ -36,10 +36,10 @@ npm run dev
 | `npm run test:e2e`  | Playwright による E2E test（Desktop / Mobile）              |
 | `npm run verify`    | typecheck → lint → test → build を一括実行                  |
 
-## Controls (placeholder — gameplay not yet implemented)
+## Controls
 
-- **Desktop:** `← →` / `A D` で移動、`Space` / `J` で射撃、`Esc` / `P` でポーズ。
-- **Mobile:** 画面下部をドラッグして移動、自動射撃。
+- **Desktop:** `← →` / `A D` で移動、`Space` / `J` で射撃、`Esc` / `P` でポーズ、`Space` / `Enter` で開始・Retry確定。
+- **Mobile:** 画面をドラッグして移動、自動射撃、右上ボタンでポーズ。
 
 ## Deploy
 

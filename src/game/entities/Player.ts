@@ -1,0 +1,88 @@
+import Phaser from 'phaser';
+import type { InputIntent } from '../systems/InputSystem';
+import { GameBalance } from '../config/balance';
+import { TextureKey } from './textures';
+import type { AppearanceTier } from '../domain/calorie';
+import { computePlayerMovementStep } from '../domain/player-movement';
+
+export type PlayerHandle = {
+  sprite: Phaser.Physics.Arcade.Sprite;
+  velocityXPxPerSec: number;
+  invulnerableUntilMs: number;
+  nextFireAtMs: number;
+};
+
+const TIER_TINT: Record<AppearanceTier, number> = {
+  light: 0x53f6ff,
+  rounded: 0x8ff2ff,
+  heavy: 0xbfe9ff,
+  overflowing: 0xffd7dc,
+};
+
+export function createPlayer(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  minX: number,
+  maxX: number,
+): PlayerHandle {
+  const sprite = scene.physics.add.sprite(x, y, TextureKey.player);
+  sprite.setCollideWorldBounds(false);
+  const body = sprite.body as Phaser.Physics.Arcade.Body;
+  const width = GameBalance.player.spriteSize;
+  const hitboxW = width * GameBalance.player.hitboxWidthRatio;
+  const hitboxH = width * GameBalance.player.hitboxHeightRatio;
+  body.setSize(hitboxW, hitboxH);
+  body.setOffset((width - hitboxW) / 2, (width - hitboxH) / 2);
+  sprite.setData('minX', minX);
+  sprite.setData('maxX', maxX);
+
+  return { sprite, velocityXPxPerSec: 0, invulnerableUntilMs: 0, nextFireAtMs: 0 };
+}
+
+/**
+ * FI-02 section 4.3 control quality: acceleration/deceleration ramps toward
+ * the target velocity rather than snapping, for both keyboard axis input and
+ * mobile drag-follow.
+ */
+export function updatePlayerMovement(
+  handle: PlayerHandle,
+  intent: InputIntent,
+  dtMs: number,
+  speedMultiplier: number,
+): void {
+  const { sprite } = handle;
+  const minX = sprite.getData('minX') as number;
+  const maxX = sprite.getData('maxX') as number;
+
+  const next = computePlayerMovementStep(
+    { x: sprite.x, velocityXPxPerSec: handle.velocityXPxPerSec },
+    intent,
+    dtMs,
+    {
+      maxSpeed: GameBalance.player.baseSpeedPxPerSec * speedMultiplier,
+      accelToMaxMs: GameBalance.player.accelToMaxMs,
+      releaseDecelMs: GameBalance.player.releaseDecelMs,
+      minX,
+      maxX,
+    },
+  );
+  sprite.x = next.x;
+  handle.velocityXPxPerSec = next.velocityXPxPerSec;
+}
+
+export function setAppearanceTint(handle: PlayerHandle, tier: AppearanceTier): void {
+  handle.sprite.setTint(TIER_TINT[tier]);
+}
+
+export function isInvulnerable(handle: PlayerHandle, nowMs: number): boolean {
+  return nowMs < handle.invulnerableUntilMs;
+}
+
+export function applyHitFlash(handle: PlayerHandle, nowMs: number): void {
+  handle.invulnerableUntilMs = nowMs + GameBalance.player.hitInvulnerabilityMs;
+  handle.sprite.setAlpha(0.5);
+  handle.sprite.scene.time.delayedCall(120, () => {
+    if (handle.sprite.active) handle.sprite.setAlpha(1);
+  });
+}
