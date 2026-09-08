@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { computeMoveAxis } from '../domain/player-movement';
 
 export type InputIntent = {
   /** Desktop keyboard axis: -1 left, 0 none, 1 right. Null when a drag is active. */
@@ -90,7 +91,7 @@ export class InputSystem {
     const left = Boolean(this.cursors?.left.isDown) || Boolean(this.keyA?.isDown);
     const right = Boolean(this.cursors?.right.isDown) || Boolean(this.keyD?.isDown);
     // AC-105: simultaneous left+right yields zero horizontal velocity.
-    const moveAxis: -1 | 0 | 1 = left === right ? 0 : left ? -1 : 1;
+    const moveAxis = computeMoveAxis(left, right);
 
     const firing =
       this.isMobile || Boolean(this.keySpace?.isDown) || Boolean(this.keyJ?.isDown);

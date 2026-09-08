@@ -5,12 +5,22 @@ export type FatE2ERunSnapshot = {
   combo: number;
   maxCombo: number;
   calorie: number;
+  caloriesDodged: number;
   stageIndex: number;
   enemiesKilled: number;
+  bossesKilled: number;
   shotsFired: number;
   playerX: number;
+  /** Diagnostic only: proves the GameScene SHUTDOWN listener never accumulates (AC-135). */
+  shutdownListenerCount: number;
+  /** Diagnostic only: proves no previous run's bullets survive into a fresh one (AC-136). */
+  activePlayerProjectiles: number;
+  activeEnemyProjectiles: number;
   endReason?: 'FAT_OVER' | 'CLEAR';
   bossPhase?: string;
+  bossX?: number;
+  bossHp?: number;
+  bossMaxHp?: number;
 };
 
 export type FatE2ESnapshot = {
@@ -25,10 +35,14 @@ export type FatE2ESnapshot = {
  * would survive a scene restart. FI-03 section 14: test-only commands that
  * reproduce wave/hit/clear outcomes deterministically, never exposed outside
  * an E2E build.
+ *
+ * `debugSetBossHp` deliberately only adjusts HP/position-shaped setup, not
+ * the kill itself — the actual boss-defeat path in tests must go through a
+ * real player-projectile-vs-boss collision, per the Milestone A audit.
  */
 export type E2EDebugHooks = {
   debugKillAllEnemies: () => void;
-  debugDefeatBoss: () => void;
+  debugSetBossHp: (hp: number) => void;
   debugApplyPlayerCalorie: (amount: number) => void;
 };
 
@@ -36,7 +50,7 @@ export type FatE2EBridge = {
   getSnapshot: () => FatE2ESnapshot;
   setSeed: (seed: string) => void;
   debugKillAllEnemies: () => void;
-  debugDefeatBoss: () => void;
+  debugSetBossHp: (hp: number) => void;
   debugApplyPlayerCalorie: (amount: number) => void;
 };
 
@@ -89,7 +103,7 @@ export function installE2EBridge(game: Phaser.Game): void {
       game.registry.set(E2E_SEED_REGISTRY_KEY, seed);
     },
     debugKillAllEnemies: () => getHooks()?.debugKillAllEnemies(),
-    debugDefeatBoss: () => getHooks()?.debugDefeatBoss(),
+    debugSetBossHp: (hp: number) => getHooks()?.debugSetBossHp(hp),
     debugApplyPlayerCalorie: (amount: number) => getHooks()?.debugApplyPlayerCalorie(amount),
   };
 }

@@ -78,4 +78,21 @@ describe('run-state reducer', () => {
     expect(afterKill.runState.score).toBe(0);
     expect(afterKill.runState.enemiesKilled).toBe(0);
   });
+
+  it('increments bossesKilled exactly once on BOSS_DEFEATED', () => {
+    const run = createRunState('seed', 0);
+    const { runState } = applyGameEvent(
+      run,
+      { type: 'BOSS_DEFEATED', bossId: 'kingBurgerMini' },
+      ctx(),
+    );
+    expect(runState.bossesKilled).toBe(1);
+  });
+
+  it('accumulates caloriesDodged once per BULLET_DODGED event (AC-125)', () => {
+    let run = createRunState('seed', 0);
+    run = applyGameEvent(run, { type: 'BULLET_DODGED', calorie: 10 }, ctx()).runState;
+    run = applyGameEvent(run, { type: 'BULLET_DODGED', calorie: 14 }, ctx()).runState;
+    expect(run.caloriesDodged).toBe(24);
+  });
 });

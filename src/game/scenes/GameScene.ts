@@ -30,7 +30,7 @@ import type { PlayerHandle } from '../entities/Player';
 import { deactivateEnemy, spawnEnemy, updateFormationMovement } from '../entities/Enemy';
 import type { EnemyRuntimeData } from '../entities/Enemy';
 import { deactivateProjectile, despawnOffscreen, fireProjectile } from '../entities/Projectile';
-import { playBossHitFlash, spawnBoss, updateBossMovement } from '../entities/Boss';
+import { disableBossHitbox, playBossHitFlash, spawnBoss, updateBossMovement } from '../entities/Boss';
 import type { BossHandle } from '../entities/Boss';
 import { waves } from '../content/waves';
 import { bullets } from '../content/bullets';
@@ -110,7 +110,7 @@ export class GameScene extends Phaser.Scene {
     const seed = seedOverride ?? generateRuntimeSeed();
     this.random = new SeededRandom(seed);
     this.runState = createRunState(seed, 0);
-    this.comboState = setFrozen(freshComboState(), true);
+    this.comboState = setFrozen(freshComboState(), true, 0);
     this.phase = 'stageIntro';
     this.phaseStartedAtMs = 0;
     this.paused = false;
@@ -174,7 +174,7 @@ export class GameScene extends Phaser.Scene {
 
     this.buildHud();
 
-    this.events.on(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
 
     registerActiveGameSceneHooks(this.game, this.buildDebugHooks());
@@ -284,7 +284,17 @@ export class GameScene extends Phaser.Scene {
     }
 
     despawnOffscreen(this.playerProjectiles, LOGICAL_HEIGHT);
-    despawnOffscreen(this.enemyProjectiles, LOGICAL_HEIGHT);
+    // FI-03 section 8 (relaxed v0.1 rule): any enemy bullet that leaves the
+    // playfield without hitting the player counts as dodged exactly once —
+    // guaranteed by the active-flag check in despawnOffscreen, since a
+    // bullet that already hit the player was deactivated by
+    // onEnemyProjectileHitsPlayer and never reaches this sweep.
+    despawnOffscreen(this.enemyProjectiles, LOGICAL_HEIGHT, (sprite) => {
+      const payload = sprite.getData('payload') as { calorie: number } | undefined;
+      if (payload) {
+        this.applyEvent({ type: 'BULLET_DODGED', calorie: payload.calorie });
+      }
+    });
 
     switch (this.phase) {
       case 'stageIntro':
@@ -323,10 +333,10 @@ export class GameScene extends Phaser.Scene {
 
     if (phase === 'wave') {
       this.hideCaption();
-      this.comboState = setFrozen(this.comboState, false);
+      this.comboState = setFrozen(this.comboState, false, nowMs);
       this.waveSystem = new WaveSystem(waves.stage1Wave1, nowMs);
     } else if (phase === 'bossWarning') {
-      this.comboState = setFrozen(this.comboState, true);
+      this.comboState = setFrozen(this.comboState, true, nowMs);
       this.showCaption('WARNING\n巨大な誘惑が接近中');
     } else if (phase === 'stageClear') {
       this.handleStageClear();
@@ -362,11 +372,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private countActiveEnemies(): number {
-    let count = 0;
-    for (const child of this.enemiesGroup.children) {
-      if ((child as Phaser.Physics.Arcade.Sprite).active) count += 1;
-    }
-    return count;
+    return countActive(this.enemiesGroup);
   }
 
   private updateEnemyFire(sprite: Phaser.Physics.Arcade.Sprite, nowMs: number): void {
@@ -400,6 +406,16 @@ export class GameScene extends Phaser.Scene {
     }
     this.bossFightNoHit = true;
     this.boss = spawnBoss(this, 'kingBurgerMini', LOGICAL_WIDTH / 2, 130, nowMs);
+    // Real player-projectile-vs-boss collision, registered once the boss
+    // sprite exists. Damage applicability (intro vs active) is gated inside
+    // the handler itself, not by when this collider exists.
+    this.physics.add.overlap(
+      this.playerProjectiles,
+      this.boss.sprite,
+      (proj, boss) => this.onPlayerProjectileHitsBoss(proj, boss),
+      undefined,
+      this,
+    );
     this.showCaption('KING BURGER');
   }
 
@@ -420,7 +436,7 @@ export class GameScene extends Phaser.Scene {
     this.boss.state = completeBossIntro(this.boss.state);
     this.phase = 'bossActive';
     this.phaseStartedAtMs = nowMs;
-    this.comboState = setFrozen(this.comboState, false);
+    this.comboState = setFrozen(this.comboState, false, nowMs);
     this.boss.nextFireAtMs = nowMs + 500;
   }
 
@@ -528,6 +544,21 @@ export class GameScene extends Phaser.Scene {
     deactivateProjectile(projSprite);
   }
 
+  private onPlayerProjectileHitsBoss(proj: unknown, boss: unknown): void {
+    const projSprite = proj as Phaser.Physics.Arcade.Sprite;
+    const bossSprite = boss as Phaser.Physics.Arcade.Sprite;
+    if (!projSprite.active || !bossSprite.active) return;
+    // FI-03 section 2.5: "Boss intro中は...射撃ダメージ無効でもよい" — the
+    // bullet is still consumed (it visibly "hits" the boss) but deals no
+    // damage until the boss is actually in a combat phase.
+    if (!this.boss || this.boss.state.phase === 'intro' || this.boss.state.phase === 'dead') {
+      deactivateProjectile(projSprite);
+      return;
+    }
+    deactivateProjectile(projSprite);
+    this.pendingBossHits.push(GameBalance.player.shotDamage);
+  }
+
   private onEnemyProjectileHitsPlayer(proj: unknown): void {
     const projSprite = proj as Phaser.Physics.Arcade.Sprite;
     if (!projSprite.active) return;
@@ -582,6 +613,8 @@ export class GameScene extends Phaser.Scene {
         });
       }
       if (result.defeated) {
+        disableBossHitbox(this.boss);
+        this.applyEvent({ type: 'BOSS_DEFEATED', bossId: this.boss.bossId });
         this.enterPhase('stageClear', nowMs);
       }
     }
@@ -619,6 +652,9 @@ export class GameScene extends Phaser.Scene {
 
   private onRunEnded(reason: RunEndReason): void {
     this.phase = 'ended';
+    // Freeze all motion/collision immediately so residual enemy bullets (or
+    // a boss corpse) can never register a hit after the run has concluded.
+    this.physics.world.pause();
     if (reason === 'FAT_OVER') {
       this.showCaption('FAT OVER\n満腹につき、いったん帰還。');
     }
@@ -685,12 +721,24 @@ export class GameScene extends Phaser.Scene {
       combo: this.runState.combo,
       maxCombo: this.runState.maxCombo,
       calorie: this.runState.calorie,
+      caloriesDodged: this.runState.caloriesDodged,
       stageIndex: this.runState.stageIndex,
       enemiesKilled: this.runState.enemiesKilled,
+      bossesKilled: this.runState.bossesKilled,
       shotsFired: this.runState.shotsFired,
       playerX: this.player.sprite.x,
+      shutdownListenerCount: this.events.listenerCount(Phaser.Scenes.Events.SHUTDOWN),
+      activePlayerProjectiles: countActive(this.playerProjectiles),
+      activeEnemyProjectiles: countActive(this.enemyProjectiles),
       ...(this.runState.endReason ? { endReason: this.runState.endReason } : {}),
-      ...(this.boss ? { bossPhase: this.boss.state.phase } : {}),
+      ...(this.boss
+        ? {
+            bossPhase: this.boss.state.phase,
+            bossX: this.boss.sprite.x,
+            bossHp: this.boss.state.hp,
+            bossMaxHp: this.boss.state.maxHp,
+          }
+        : {}),
     };
   }
 
@@ -709,10 +757,13 @@ export class GameScene extends Phaser.Scene {
           }
         }
       },
-      debugDefeatBoss: (): void => {
-        if (this.boss && this.boss.state.phase !== 'dead') {
-          this.pendingBossHits.push(this.boss.state.hp);
-        }
+      // Adjusts boss HP only — the actual kill must still go through a real
+      // player-projectile-vs-boss collision (never sets hp to 0 itself), so
+      // E2E coverage of boss defeat exercises the production combat path.
+      debugSetBossHp: (hp: number): void => {
+        if (!this.boss) return;
+        const clamped = Math.max(1, Math.min(hp, this.boss.state.maxHp));
+        this.boss.state = { ...this.boss.state, hp: clamped };
       },
       debugApplyPlayerCalorie: (amount: number): void => {
         this.pendingPlayerHits.push({ calorie: amount, source: 'contact' });
@@ -732,4 +783,12 @@ export class GameScene extends Phaser.Scene {
 
 function isMobileViewport(): boolean {
   return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+}
+
+function countActive(group: Phaser.Physics.Arcade.Group): number {
+  let count = 0;
+  for (const child of group.children) {
+    if ((child as Phaser.Physics.Arcade.Sprite).active) count += 1;
+  }
+  return count;
 }

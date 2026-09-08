@@ -3,6 +3,7 @@ import type { InputIntent } from '../systems/InputSystem';
 import { GameBalance } from '../config/balance';
 import { TextureKey } from './textures';
 import type { AppearanceTier } from '../domain/calorie';
+import { computePlayerMovementStep } from '../domain/player-movement';
 
 export type PlayerHandle = {
   sprite: Phaser.Physics.Arcade.Sprite;
@@ -51,39 +52,23 @@ export function updatePlayerMovement(
   speedMultiplier: number,
 ): void {
   const { sprite } = handle;
-  const maxSpeed = GameBalance.player.baseSpeedPxPerSec * speedMultiplier;
   const minX = sprite.getData('minX') as number;
   const maxX = sprite.getData('maxX') as number;
 
-  let targetVelocity = 0;
-  if (intent.dragTargetX !== null) {
-    const distance = intent.dragTargetX - sprite.x;
-    if (Math.abs(distance) > 1) {
-      targetVelocity = Math.sign(distance) * maxSpeed;
-    }
-  } else {
-    targetVelocity = intent.moveAxis * maxSpeed;
-  }
-
-  const rampMs =
-    targetVelocity === 0
-      ? GameBalance.player.releaseDecelMs
-      : GameBalance.player.accelToMaxMs;
-  const rampPerMs = maxSpeed / Math.max(rampMs, 1);
-  const maxStep = rampPerMs * dtMs;
-
-  const delta = targetVelocity - handle.velocityXPxPerSec;
-  if (Math.abs(delta) <= maxStep) {
-    handle.velocityXPxPerSec = targetVelocity;
-  } else {
-    handle.velocityXPxPerSec += Math.sign(delta) * maxStep;
-  }
-
-  const nextX = sprite.x + (handle.velocityXPxPerSec * dtMs) / 1000;
-  sprite.x = Phaser.Math.Clamp(nextX, minX, maxX);
-  if (sprite.x === minX || sprite.x === maxX) {
-    handle.velocityXPxPerSec = 0;
-  }
+  const next = computePlayerMovementStep(
+    { x: sprite.x, velocityXPxPerSec: handle.velocityXPxPerSec },
+    intent,
+    dtMs,
+    {
+      maxSpeed: GameBalance.player.baseSpeedPxPerSec * speedMultiplier,
+      accelToMaxMs: GameBalance.player.accelToMaxMs,
+      releaseDecelMs: GameBalance.player.releaseDecelMs,
+      minX,
+      maxX,
+    },
+  );
+  sprite.x = next.x;
+  handle.velocityXPxPerSec = next.velocityXPxPerSec;
 }
 
 export function setAppearanceTint(handle: PlayerHandle, tier: AppearanceTier): void {

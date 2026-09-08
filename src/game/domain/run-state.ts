@@ -121,6 +121,18 @@ export function applyGameEvent(
         comboState: ctx.comboState,
       };
 
+    case 'BOSS_DEFEATED':
+      return {
+        runState: { ...runState, bossesKilled: runState.bossesKilled + 1 },
+        comboState: ctx.comboState,
+      };
+
+    case 'BULLET_DODGED':
+      return {
+        runState: { ...runState, caloriesDodged: runState.caloriesDodged + event.calorie },
+        comboState: ctx.comboState,
+      };
+
     case 'RUN_ENDED': {
       return {
         runState: {

@@ -3,9 +3,11 @@ export type GameEvent =
   | { type: 'ENEMY_HIT'; enemyId: string; x: number; y: number }
   | { type: 'ENEMY_KILLED'; enemyId: string; score: number; combo: number; x: number; y: number }
   | { type: 'PLAYER_HIT'; calorie: number; total: number }
+  | { type: 'BULLET_DODGED'; calorie: number }
   | { type: 'COMBO_TIER_CHANGED'; combo: number; multiplier: number }
   | { type: 'POWERUP_COLLECTED'; powerUpId: string }
   | { type: 'BOSS_PHASE_CHANGED'; bossId: string; phase: string }
+  | { type: 'BOSS_DEFEATED'; bossId: string }
   | { type: 'WAVE_COMPLETED'; waveId: string }
   | { type: 'STAGE_CLEARED'; stageId: string }
   | { type: 'RUN_ENDED'; reason: 'FAT_OVER' | 'CLEAR' };

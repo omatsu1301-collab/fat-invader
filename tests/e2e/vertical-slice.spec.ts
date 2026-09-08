@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 
+// FI-02 section 3. Kept as a local literal (not imported from src/game/config)
+// so this Node-side test file never pulls in Phaser, which touches canvas/DOM
+// globals at module init and cannot run outside a browser context.
+const LOGICAL_WIDTH = 390;
+
+type Box = { x: number; y: number; width: number; height: number };
+
 async function waitForScene(page: Page, sceneKey: string, timeout = 4000): Promise<void> {
   await page.waitForFunction(
     (key) => window.__FAT_E2E__?.getSnapshot().sceneKey === key,
@@ -8,7 +15,7 @@ async function waitForScene(page: Page, sceneKey: string, timeout = 4000): Promi
   );
 }
 
-async function startRun(page: Page, seed: string): Promise<{ x: number; y: number; width: number; height: number }> {
+async function startRun(page: Page, seed: string): Promise<Box> {
   await page.goto('/');
   await waitForScene(page, 'TitleScene');
   await page.evaluate((s) => window.__FAT_E2E__?.setSeed(s), seed);
@@ -21,8 +28,55 @@ async function startRun(page: Page, seed: string): Promise<{ x: number; y: numbe
   return box;
 }
 
+/**
+ * Finishes the boss fight through a *real* player-projectile-vs-boss
+ * collision, per the Milestone A audit ("Bossへの最終ダメージそのものを
+ * debug commandで直接発生させないでください"). `debugSetBossHp` only
+ * shrinks HP so a single real hit is lethal and the test stays fast/CI-safe
+ * — it never applies damage itself. Mouse-based dragging is used for both
+ * projects (Phaser treats mouse and touch pointers uniformly), so this one
+ * path aims the player under the boss on Desktop and Mobile alike; firing
+ * is manual (held Space) on Desktop and automatic on Mobile.
+ */
+async function defeatBossWithRealCollision(page: Page, box: Box, isMobile: boolean): Promise<void> {
+  await page.evaluate(() => window.__FAT_E2E__?.debugSetBossHp(1));
+
+  const y = box.y + box.height * 0.86;
+  await page.mouse.move(box.x + box.width / 2, y);
+  await page.mouse.down();
+  if (!isMobile) {
+    await page.keyboard.down('Space');
+  }
+
+  let defeated = false;
+  for (let i = 0; i < 60 && !defeated; i += 1) {
+    const run = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+    if (run?.endReason === 'CLEAR') {
+      defeated = true;
+      break;
+    }
+    if (typeof run?.bossX === 'number') {
+      const screenX = box.x + (run.bossX / LOGICAL_WIDTH) * box.width;
+      await page.mouse.move(screenX, y);
+    }
+    await page.waitForTimeout(120);
+  }
+
+  await page.mouse.up();
+  if (!isMobile) {
+    await page.keyboard.up('Space');
+  }
+
+  if (!defeated) {
+    const finalRun = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+    throw new Error(
+      `Boss was not defeated via real collision within the timeout. Final run snapshot: ${JSON.stringify(finalRun)}`,
+    );
+  }
+}
+
 test.describe('Vertical slice', () => {
-  test('title -> move -> fire -> kill -> calorie -> boss -> clear -> result -> retry (AC-130/131/132)', async ({
+  test('title -> move -> fire -> kill -> calorie -> boss (real hit) -> clear -> result -> retry (AC-130/131/132)', async ({
     page,
   }, testInfo) => {
     const consoleErrors: string[] = [];
@@ -96,11 +150,14 @@ test.describe('Vertical slice', () => {
       { timeout: 2000 },
     );
 
-    await page.evaluate(() => window.__FAT_E2E__?.debugDefeatBoss());
+    // Blocker 1 fix proof: the boss must go down via a real player-projectile
+    // collision, not a debug "defeat" shortcut.
+    await defeatBossWithRealCollision(page, box, isMobile);
     await waitForScene(page, 'ResultScene', 6000);
 
     const resultSnapshot = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot());
     expect(resultSnapshot?.run?.endReason).toBe('CLEAR');
+    expect(resultSnapshot?.run?.bossesKilled).toBe(1);
 
     // AC-132: Retry from Result must start a genuinely fresh run.
     await canvas.click({ position: { x: box.width / 2, y: box.height * 0.74 } });
@@ -135,7 +192,67 @@ test.describe('Vertical slice', () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test('restarting 10 times never leaks state into the next run (AC-135/136)', async ({ page }) => {
+  test('Pause freezes score/CALORIE/game clock and blocks queued hits until resumed (AC-133)', async ({
+    page,
+  }) => {
+    await startRun(page, 'e2e-pause');
+
+    await page.evaluate(() => window.__FAT_E2E__?.debugApplyPlayerCalorie(20));
+    await page.waitForFunction(
+      () => (window.__FAT_E2E__?.getSnapshot().run?.calorie ?? 0) >= 20,
+    );
+    // Let the 650ms post-hit invulnerability window (AC-114) expire before
+    // pausing, so it can't also suppress the second hit queued below and
+    // confound this test's proof that *pause* — not invulnerability — is
+    // what's blocking it.
+    await page.waitForTimeout(750);
+
+    await page.keyboard.press('Escape');
+    const before = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+
+    // Real time passes while paused; nothing in the run should move.
+    await page.waitForTimeout(800);
+    const afterWait = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+    expect(afterWait).toEqual(before);
+
+    // A hit queued while paused must not be resolved until play resumes,
+    // since resolveCombat only runs inside the active (non-paused) update path.
+    await page.evaluate(() => window.__FAT_E2E__?.debugApplyPlayerCalorie(50));
+    await page.waitForTimeout(300);
+    const stillPaused = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+    expect(stillPaused?.calorie).toBe(before?.calorie);
+    expect(stillPaused?.playerX).toBe(before?.playerX);
+
+    await page.keyboard.press('Escape'); // resume
+    await page.waitForFunction(
+      (expected) => (window.__FAT_E2E__?.getSnapshot().run?.calorie ?? 0) >= expected,
+      (before?.calorie ?? 0) + 50,
+      { timeout: 2000 },
+    );
+  });
+
+  test('tab-hidden triggers auto-pause (AC-134)', async ({ page }) => {
+    await startRun(page, 'e2e-visibility');
+
+    await page.evaluate(() => window.__FAT_E2E__?.debugApplyPlayerCalorie(10));
+    await page.waitForFunction(
+      () => (window.__FAT_E2E__?.getSnapshot().run?.calorie ?? 0) >= 10,
+    );
+
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    const before = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+    await page.waitForTimeout(600);
+    const after = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+    expect(after).toEqual(before);
+  });
+
+  test('restarting 10 times never leaks state or SHUTDOWN listeners into the next run (AC-135/136)', async ({
+    page,
+  }) => {
     const consoleErrors: string[] = [];
     const pageErrors: string[] = [];
     page.on('console', (msg) => {
@@ -145,10 +262,35 @@ test.describe('Vertical slice', () => {
 
     await startRun(page, 'e2e-restart-stress');
 
+    // Phaser's own systems (physics, tweens, input, loader, ...) each
+    // register their own SHUTDOWN listener as part of normal scene
+    // lifecycle, so the baseline count is not 1. The audit's concern is
+    // growth: `.on(SHUTDOWN, ...)` re-registered on every create() would add
+    // one extra listener per restart, so what matters is that this count
+    // stays flat against the count from the very first run.
+    const baselineShutdownListenerCount = await page.evaluate(
+      () => window.__FAT_E2E__?.getSnapshot().run?.shutdownListenerCount,
+    );
+    expect(baselineShutdownListenerCount).toBeGreaterThan(0);
+
     for (let i = 0; i < 10; i += 1) {
       const snapshotAtStart = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot());
       expect(snapshotAtStart?.run?.score).toBe(0);
       expect(snapshotAtStart?.run?.endReason).toBeUndefined();
+      expect(snapshotAtStart?.run?.shutdownListenerCount).toBe(baselineShutdownListenerCount);
+      // AC-136: no *enemy* bullets survive from the previous run into this
+      // fresh one. (Player projectiles are deliberately not asserted here:
+      // on Mobile, auto-fire can legitimately produce a brand-new in-flight
+      // shot within the fresh run's very first frame, which would be a
+      // false positive for "leftover from the previous run" — enemy
+      // bullets can't exist yet this early since the wave hasn't spawned.)
+      expect(snapshotAtStart?.run?.activeEnemyProjectiles).toBe(0);
+
+      // Fire a few real shots so this run has in-flight bullets whose
+      // clearing the *next* iteration's assertions above actually prove.
+      await page.keyboard.down('Space');
+      await page.waitForTimeout(200);
+      await page.keyboard.up('Space');
 
       await page.evaluate(() => window.__FAT_E2E__?.debugApplyPlayerCalorie(100));
       await waitForScene(page, 'ResultScene', 4000);

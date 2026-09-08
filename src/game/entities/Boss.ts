@@ -66,3 +66,14 @@ export function playBossHitFlash(handle: BossHandle): void {
     if (handle.sprite.active) handle.sprite.clearTint();
   });
 }
+
+/**
+ * Disables the boss's physics body once defeated so it can no longer
+ * overlap the player or player projectiles, while keeping it visible for
+ * the Stage Clear beat. The sprite itself is torn down with the rest of
+ * the scene on the next GameScene shutdown.
+ */
+export function disableBossHitbox(handle: BossHandle): void {
+  const body = handle.sprite.body as Phaser.Physics.Arcade.Body | null;
+  if (body) body.enable = false;
+}
