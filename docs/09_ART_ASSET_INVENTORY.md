@@ -48,13 +48,12 @@ FI-06 §5 Required scopeに基づく、Stage 1(BURGER DISTRICT)向け最小セ�
 
 CLAUDE.md Autonomy Rules「Art directionの大幅変更」「既存の判断に関わる資産の出所」はAI単独で決められないため、実装着手前に次を確認する。
 
-1. **最終素材の制作方法をどうするか。** 想定される選択肢:
-   - (a) Human側で外部発注・購入したpixel artアセットをリポジトリへ提供する。
-   - (b) AIが生成AIツールでラスター素材を作成し、Humanがtaste審査する(FI-04 §14「AI生成画像の不統一な解像感を、そのまま寄せ集めること」は禁止だが、統一されたAI生成パイプライン自体を禁止していない — 解釈の確認が必要)。
-   - (c) 当面はPhaser Graphics APIによる「強化されたplaceholder」(現状より情報量の多い図形合成)でGame Feel実装を先行させ、ラスター素材は差し替え可能なid設計にとどめてMilestone C以降に本素材へ置き換える。
-   - AIの推奨: (c)を起点にWork order step 2〜6(単発kill演出、combo演出、Boss演出)を素材非依存のまま完成させ、(a)または(b)の素材が揃い次第、同じtexture keyへ差し替える。これは「仮素材の完成度向上に時間を使わない」というFI-04 §12の原則にも合致し、Game Feelの検証(hit stop、flash、shake等)は形状の精緻さに依存しないため。
-   - 代替案: 最初から(a)/(b)を確定させ、Feel実装と素材制作を並行する。Human側の素材供給速度に実装が引っ張られるriskがある。
-   - 影響: この決定がWork order全体の着手順序を左右するため、最初のHuman Gateとして確認したい。
+1. **最終素材の制作方法をどうするか。 → Human決定済み(下記参照)。**
+   - 想定した選択肢: (a) Human側で外部発注・購入したpixel artアセットを提供、(b) AIが生成AIツールでラスター素材を作成しHumanがtaste審査、(c) 当面はPhaser Graphics APIによる「強化されたplaceholder」でGame Feel実装を先行させ、ラスター素材は差し替え可能なid設計にとどめて後で本素材へ置き換える。
+   - **Decision (2026-09-08):** (c) 強化placeholder先行を採用。
+   - **背景:** Game Feelの検証(hit stop、flash、shake、combo演出、Boss演出)は形状の精緻さに依存せず、FI-04 §12「仮素材の完成度向上に時間を使わない」の原則にも合致するため。
+   - **却下案:** (a)/(b)を先に確定させてから実装する案は、Human側の素材供給・生成速度にWork order全体が引っ張られるriskを理由に見送り。
+   - **影響:** Milestone BのWork order step 2「単発shot / hit / killを完成」からstep 6「Boss phase / death演出」までは、現行のplaceholder texture key構成を強化する形でHuman decisionを待たず着手できる。ラスター最終素材(BGM/SE含む)の制作方法は、Work order step 7(Sound mixとvoice limit)以降に改めて確定すればよい。texture/audio keyのid設計を最初から差し替え可能にしておくことが実装側の責務になる。
 
 2. **BGM/SEの権利処理方針。** フリー素材ライブラリの利用、Humanによる作曲外注、AI生成音源のいずれか。FI-04 §13は権利・出典・生成条件をmanifest/creditsに記録することを求めており、方針が決まらないと `asset-manifest.ts` のlicense欄を設計できない。
 
@@ -66,4 +65,4 @@ FI-05のディレクトリ構成は `src/game/content/asset-manifest.ts` を将�
 
 ## 5. Not blocking Milestone B start
 
-上記の未決事項は「素材そのもの」と「manifest」に限定される。Work order step 2「単発shot / hit / killを完成」からstep 6「Boss phase / death演出」までは、現行のplaceholder texture key構成のまま(強化graphicsへの差し替えを含め)着手可能であり、Human decisionを待つ必要はない。
+素材制作方針(§3-1)はHuman decision済み(強化placeholder先行)。残るBGM/SE権利処理方針(§3-2)とfood bullet pattern数(§3-3)は未決だが、いずれもWork order step 7以降(Sound mix、Content確定)に関わる論点であり、Work order step 2〜6(単発kill演出からBoss phase/death演出まで)の着手を妨げない。
