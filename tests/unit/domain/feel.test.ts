@@ -84,6 +84,12 @@ describe('feel budgets (AC-201/204/211/212)', () => {
     expect(GameBalance.feel.shake.normalKillMs).toBe(70);
   });
 
+  it('holds FAT OVER pose for 2.6s before Result (Gate 2 Human follow-up)', () => {
+    expect(GameBalance.feel.fatOverHoldMs).toBe(2600);
+    expect(GameBalance.feel.fatOverHoldMs).toBeGreaterThan(2000);
+    expect(GameBalance.feel.clearHoldMs).toBe(1600);
+  });
+
   it('maps boss death elapsed time into impact → internal → finale within 1.0–1.3s', () => {
     const { internalFirstMs, finaleMs } = GameBalance.feel.bossDeath;
     const duration = GameBalance.boss.kingBurgerMini.deathDurationMs;

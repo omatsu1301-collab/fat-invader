@@ -37,6 +37,8 @@ export type FatE2ERunSnapshot = {
   enemyFormationOffsets?: number[];
   bossDeathBeat?: 'impact' | 'internal' | 'finale';
   fatOverPoseActive?: boolean;
+  runEndedCount?: number;
+  caption?: string;
 };
 
 export type FatE2ESnapshot = {

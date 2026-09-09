@@ -136,6 +136,10 @@ export const GameBalance = {
     muzzleParticlesReduced: 1,
     comboCalloutDurationMs: 380,
     playerHitVignetteMs: 90,
+    /** Human Gate 2 follow-up: squash pose + caption hold before Result. */
+    fatOverHoldMs: 2600,
+    /** Unchanged STAGE CLEAR → Result hold. */
+    clearHoldMs: 1600,
     /**
      * Boss death is a 3-beat display sequence (Human Gate 2). Timings are
      * display-only; they must not change score, bossesKilled, or STAGE CLEAR

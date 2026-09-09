@@ -106,6 +106,7 @@ export class GameScene extends Phaser.Scene {
   private feedback!: FeedbackSystem;
   private feelSettings: FeelSettings = DEFAULT_FEEL_SETTINGS;
   private fatOverPoseApplied = false;
+  private runEndedCount = 0;
 
   private readonly onVisibilityChange = (): void => {
     if (document.hidden && !this.paused && this.phase !== 'ended') {
@@ -138,6 +139,7 @@ export class GameScene extends Phaser.Scene {
     this.pendingBossHits = [];
     this.feelSettings = toFeelSettings(loadSaveData(this.storage).settings);
     this.fatOverPoseApplied = false;
+    this.runEndedCount = 0;
 
     ensurePlaceholderTextures(this);
     this.cameras.main.setBackgroundColor('#090615');
@@ -791,6 +793,7 @@ export class GameScene extends Phaser.Scene {
     this.eventBus.emit(event);
 
     if (!hadEnded && this.runState.endReason) {
+      this.runEndedCount += 1;
       if (event.type !== 'RUN_ENDED') {
         this.eventBus.emit({ type: 'RUN_ENDED', reason: this.runState.endReason });
       }
@@ -829,7 +832,9 @@ export class GameScene extends Phaser.Scene {
 
     publishRunSnapshot(this.game, this.buildSnapshot());
 
-    this.time.delayedCall(1600, () => {
+    const holdMs =
+      reason === 'FAT_OVER' ? GameBalance.feel.fatOverHoldMs : GameBalance.feel.clearHoldMs;
+    this.time.delayedCall(holdMs, () => {
       this.scene.start('ResultScene', {
         runState: this.runState,
         evaluationScore,
@@ -918,6 +923,10 @@ export class GameScene extends Phaser.Scene {
         ? { bossDeathBeat: bossDeathBeatAt(this.feedback.bossDeathElapsedMs() ?? 0) }
         : {}),
       ...(this.fatOverPoseApplied ? { fatOverPoseActive: true } : {}),
+      runEndedCount: this.runEndedCount,
+      ...(this.captionText.visible && this.captionText.text
+        ? { caption: this.captionText.text }
+        : {}),
     };
   }
 

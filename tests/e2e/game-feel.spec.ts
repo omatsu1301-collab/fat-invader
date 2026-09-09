@@ -155,9 +155,10 @@ test.describe('Game Feel (Milestone B steps 2-6)', () => {
     expect(after?.activeEnemies).toBeGreaterThanOrEqual(8);
   });
 
-  test('FAT OVER pose is visible on GameScene before Result (Gate 2 evidence)', async ({
+  test('FAT OVER pose and caption hold ~2.6s then Result once (Gate 2)', async ({
     page,
   }, testInfo) => {
+    test.setTimeout(60_000);
     const pageErrors: string[] = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
     await startRun(page, 'e2e-feel-fat-over-pose');
@@ -169,6 +170,14 @@ test.describe('Game Feel (Milestone B steps 2-6)', () => {
         window.__FAT_E2E__?.getSnapshot().run?.endReason === 'FAT_OVER',
       { timeout: 4_000 },
     );
+    const poseAtMs = Date.now();
+
+    const started = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot());
+    expect(started?.run?.caption).toContain('FAT OVER');
+    expect(started?.run?.caption).toContain('満腹につき、いったん帰還。');
+    expect(started?.run?.runEndedCount).toBe(1);
+    expect(started?.run?.calorie).toBe(100);
+    const scoreAtEnd = started?.run?.score ?? 0;
 
     const isMobile = Boolean(testInfo.project.use.isMobile);
     const shotName = isMobile ? 'gate2-fat-over-pose-mobile' : 'gate2-fat-over-pose-desktop';
@@ -178,15 +187,45 @@ test.describe('Game Feel (Milestone B steps 2-6)', () => {
     });
     await testInfo.attach(shotName, { body: png, contentType: 'image/png' });
 
-    await page.waitForTimeout(450);
+    await page.evaluate(() => {
+      window.__FAT_E2E__?.debugApplyPlayerCalorie(50);
+      window.__FAT_E2E__?.debugKillAllEnemies();
+    });
+    while (Date.now() - poseAtMs < 2000) {
+      await page.waitForTimeout(50);
+    }
+    expect(Date.now() - poseAtMs).toBeGreaterThanOrEqual(2000);
+
     const held = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot());
     expect(held?.sceneKey).toBe('GameScene');
     expect(held?.run?.fatOverPoseActive).toBe(true);
     expect(held?.run?.endReason).toBe('FAT_OVER');
+    expect(held?.run?.caption).toContain('FAT OVER');
+    expect(held?.run?.caption).toContain('満腹につき、いったん帰還。');
+    expect(held?.run?.runEndedCount).toBe(1);
+    expect(held?.run?.calorie).toBe(100);
+    expect(held?.run?.score).toBe(scoreAtEnd);
 
-    await waitForScene(page, 'ResultScene', 4000);
+    await waitForScene(page, 'ResultScene', 6000);
+    const resultAtMs = Date.now();
     const result = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot());
     expect(result?.run?.endReason).toBe('FAT_OVER');
+    expect(result?.run?.runEndedCount).toBe(1);
+    expect(result?.run?.calorie).toBe(100);
+    expect(resultAtMs - poseAtMs).toBeGreaterThanOrEqual(2000);
+    expect(resultAtMs - poseAtMs).toBeLessThan(8000);
+    expect(pageErrors).toEqual([]);
+
+    const canvas = page.locator('canvas');
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('canvas bounding box not found');
+    await canvas.click({ position: { x: box.width / 2, y: box.height * 0.74 } });
+    await waitForScene(page, 'GameScene');
+    const fresh = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot());
+    expect(fresh?.run?.calorie).toBe(0);
+    expect(fresh?.run?.endReason).toBeUndefined();
+    expect(fresh?.run?.runEndedCount).toBe(0);
+    expect(fresh?.run?.fatOverPoseActive).toBeUndefined();
     expect(pageErrors).toEqual([]);
   });
 
