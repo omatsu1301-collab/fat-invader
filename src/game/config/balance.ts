@@ -77,7 +77,7 @@ export const GameBalance = {
       phase2HpFraction: 0.5,
       phase1: { moveSpeedPxPerSec: 70, fireIntervalMs: 1100, bulletCount: 1 },
       phase2: { moveSpeedPxPerSec: 130, fireIntervalMs: 700, bulletCount: 3 },
-      deathDurationMs: 1600,
+      deathDurationMs: 1200,
     },
   },
 
@@ -136,7 +136,27 @@ export const GameBalance = {
     muzzleParticlesReduced: 1,
     comboCalloutDurationMs: 380,
     playerHitVignetteMs: 90,
-    bossDeathBurstCount: 8,
+    /**
+     * Boss death is a 3-beat display sequence (Human Gate 2). Timings are
+     * display-only; they must not change score, bossesKilled, or STAGE CLEAR
+     * bonuses. Normal-kill particle / hit-stop / shake values stay untouched.
+     */
+    bossDeath: {
+      internalCount: 4,
+      internalCountReduced: 3,
+      internalFirstMs: 220,
+      internalGapMs: 170,
+      finaleMs: 900,
+      blinkPeriodMs: 70,
+      impactFlashMs: 90,
+      internalParticles: 8,
+      internalParticlesReduced: 4,
+      internalFragments: 3,
+      finaleParticles: 18,
+      finaleParticlesReduced: 8,
+      finaleFragments: 8,
+      finaleFragmentsReduced: 4,
+    },
     bossDeathShockwaves: 2,
     shake: {
       normalKillPx: 2.5,
@@ -147,6 +167,8 @@ export const GameBalance = {
       bossPhaseMs: 120,
       bossDeathPx: 6,
       bossDeathMs: 250,
+      bossDeathInternalPx: 3.5,
+      bossDeathInternalMs: 55,
       reducedScale: 0.25,
       comboTierBonusPx: 1.5,
     },

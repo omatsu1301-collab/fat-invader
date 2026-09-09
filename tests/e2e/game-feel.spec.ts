@@ -155,18 +155,42 @@ test.describe('Game Feel (Milestone B steps 2-6)', () => {
     expect(after?.activeEnemies).toBeGreaterThanOrEqual(8);
   });
 
-  test('player hit and FAT OVER still reach Result with no page errors (AC-115)', async ({
+  test('FAT OVER pose is visible on GameScene before Result (Gate 2 evidence)', async ({
     page,
-  }) => {
+  }, testInfo) => {
     const pageErrors: string[] = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
-    await startRun(page, 'e2e-feel-player-hit');
+    await startRun(page, 'e2e-feel-fat-over-pose');
     await page.evaluate(() => window.__FAT_E2E__?.debugApplyPlayerCalorie(100));
+    await page.waitForFunction(
+      () =>
+        window.__FAT_E2E__?.getSnapshot().sceneKey === 'GameScene' &&
+        window.__FAT_E2E__?.getSnapshot().run?.fatOverPoseActive === true &&
+        window.__FAT_E2E__?.getSnapshot().run?.endReason === 'FAT_OVER',
+      { timeout: 4_000 },
+    );
+
+    const isMobile = Boolean(testInfo.project.use.isMobile);
+    const shotName = isMobile ? 'gate2-fat-over-pose-mobile' : 'gate2-fat-over-pose-desktop';
+    const png = await page.screenshot({
+      path: `docs/evidence/${shotName}.png`,
+      fullPage: true,
+    });
+    await testInfo.attach(shotName, { body: png, contentType: 'image/png' });
+
+    await page.waitForTimeout(450);
+    const held = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot());
+    expect(held?.sceneKey).toBe('GameScene');
+    expect(held?.run?.fatOverPoseActive).toBe(true);
+    expect(held?.run?.endReason).toBe('FAT_OVER');
+
     await waitForScene(page, 'ResultScene', 4000);
+    const result = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot());
+    expect(result?.run?.endReason).toBe('FAT_OVER');
     expect(pageErrors).toEqual([]);
   });
 
-  test('boss death holds the dead phase before CLEAR (AC-200 path / step 6)', async ({
+  test('boss death plays impact → internal → finale → STAGE CLEAR → Result once (Gate 2)', async ({
     page,
   }, testInfo) => {
     await startRun(page, 'e2e-feel-boss-death');
@@ -188,30 +212,64 @@ test.describe('Game Feel (Milestone B steps 2-6)', () => {
     await page.mouse.down();
     if (!isMobile) await page.keyboard.down('Space');
 
-    let sawDead = false;
+    const beats: string[] = [];
+    let scoreAtDeath: number | undefined;
+    let calorieAtDeath: number | undefined;
+    let sawPreFinaleVisible = false;
+    let sawInternal = false;
+    let sawFinaleHidden = false;
     let cleared = false;
-    for (let i = 0; i < 80 && !cleared; i += 1) {
+
+    for (let i = 0; i < 100 && !cleared; i += 1) {
       const run = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
       if (run?.bossPhase === 'dead' && run.endReason === undefined) {
-        sawDead = true;
-        expect(run.bossSpriteVisible).toBe(true);
+        if (scoreAtDeath === undefined) {
+          scoreAtDeath = run.score;
+          calorieAtDeath = run.calorie;
+        }
+        expect(run.bossesKilled).toBe(1);
+        expect(run.score).toBe(scoreAtDeath);
+        expect(run.calorie).toBe(calorieAtDeath);
         expect(run.bossBodyEnabled).toBe(false);
         expect(run.activeEnemyProjectiles ?? 0).toBe(0);
       }
+      const beat = run?.bossDeathBeat;
+      if (beat && beats[beats.length - 1] !== beat) beats.push(beat);
+      if (beat === 'impact' || (beat === 'internal' && run?.bossSpriteVisible)) {
+        sawPreFinaleVisible = true;
+      }
+      if (beat === 'internal') {
+        sawInternal = true;
+        expect(run?.endReason).toBeUndefined();
+      }
+      if (beat === 'finale') {
+        expect(run?.bossSpriteVisible).toBe(false);
+        expect(run?.endReason).toBeUndefined();
+        sawFinaleHidden = true;
+      }
       if (run?.endReason === 'CLEAR') {
+        expect(run.bossesKilled).toBe(1);
         cleared = true;
         break;
       }
       if (typeof run?.bossX === 'number') {
         await page.mouse.move(playBox.x + (run.bossX / 390) * playBox.width, y);
       }
-      await page.waitForTimeout(100);
+      await page.waitForTimeout(30);
     }
 
     await page.mouse.up();
     if (!isMobile) await page.keyboard.up('Space');
 
-    expect(sawDead, 'expected a visible boss-death beat before STAGE CLEAR').toBe(true);
+    expect(sawPreFinaleVisible, 'expected boss sprite to remain visible before the finale').toBe(true);
+    expect(sawInternal, 'expected internal-explosion beat before finale').toBe(true);
+    expect(sawFinaleHidden, 'expected finale to hide the boss sprite').toBe(true);
+    expect(beats.join('>')).toMatch(/internal.*finale/);
     expect(cleared).toBe(true);
+
+    await waitForScene(page, 'ResultScene', 4000);
+    const result = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+    expect(result?.endReason).toBe('CLEAR');
+    expect(result?.bossesKilled).toBe(1);
   });
 });

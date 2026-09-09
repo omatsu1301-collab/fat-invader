@@ -147,6 +147,8 @@
 | AC-232 | 派手さが回避の妨げにならないと採用 | H | MUST |
 | AC-233 | 食べ物が「危険かつおいしそう」と採用 | H | MUST |
 
+Human Gate 2 (2026-09-08): **CONDITIONAL PASS / 修正付き採用（正式PASSではない）。** AC-230 / AC-231 は PASS「ちょうどいい」（通常敵kill feelは非変更）。Boss deathは3-beatへ強化。AC-232 / AC-233 はplaceholderのため保留し、最終ドット素材導入後に再判定する。
+
 ## 7. Milestone C Acceptance — Content
 
 ### 7.1 Content completeness

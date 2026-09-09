@@ -12,6 +12,7 @@ import {
   scaledShakePx,
   stackHitStopMs,
   stackShakePx,
+  bossDeathInternalCount,
   type FeelSettings,
 } from '../domain/feel';
 import type { GameEvent } from '../domain/events';
@@ -40,7 +41,7 @@ type PopupSlot = {
 };
 
 type FlashSlot = { rect: Phaser.GameObjects.Rectangle; lifeMs: number };
-type BurstCue = { atMs: number; x: number; y: number };
+type BurstCue = { atMs: number; x: number; y: number; kind: 'internal' | 'finale' };
 type ShockwaveSlot = { arc: Phaser.GameObjects.Arc; lifeMs: number; maxLifeMs: number };
 
 export type FeelTelemetry = {
@@ -71,6 +72,7 @@ export class FeedbackSystem {
   private vignetteUntilMs = 0;
   private displayClockMs = 0;
   private shakeApplied = false;
+  private deathStartedAtMs: number | null = null;
   private unsub: (() => void) | null = null;
 
   constructor(
@@ -125,6 +127,15 @@ export class FeedbackSystem {
     };
   }
 
+  displayNowMs(): number {
+    return this.displayClockMs;
+  }
+
+  bossDeathElapsedMs(): number | null {
+    if (this.deathStartedAtMs === null) return null;
+    return this.displayClockMs - this.deathStartedAtMs;
+  }
+
   tick(dtMs: number, isDisplayRunning: boolean): void {
     if (!isDisplayRunning) {
       return;
@@ -147,24 +158,29 @@ export class FeedbackSystem {
   }
 
   playBossDeath(x: number, y: number): void {
+    this.deathStartedAtMs = this.displayClockMs;
     this.requestHitStop(GameBalance.hitStop.bossKillMs);
-    this.requestShake(GameBalance.feel.shake.bossDeathPx, GameBalance.feel.shake.bossDeathMs);
-    const bursts = this.settings.reducedEffects
-      ? Math.max(3, Math.floor(GameBalance.feel.bossDeathBurstCount / 2))
-      : GameBalance.feel.bossDeathBurstCount;
-    for (let i = 0; i < bursts; i += 1) {
-      const angle = (i / bursts) * Math.PI * 2;
-      const radius = 28 + i * 6;
+    this.spawnScreenFlash();
+    this.spawnFlash(x, y, 36);
+
+    const internals = bossDeathInternalCount(this.settings);
+    const { internalFirstMs, internalGapMs, finaleMs } = GameBalance.feel.bossDeath;
+    for (let i = 0; i < internals; i += 1) {
+      const angle = this.vfxRandom.next() * Math.PI * 2;
+      const radius = 12 + this.vfxRandom.next() * 28;
       this.burstCues.push({
-        atMs: this.displayClockMs + i * 70,
+        atMs: this.displayClockMs + internalFirstMs + i * internalGapMs,
         x: x + Math.cos(angle) * radius,
         y: y + Math.sin(angle) * radius,
+        kind: 'internal',
       });
     }
-    const waves = this.settings.reducedEffects ? 1 : GameBalance.feel.bossDeathShockwaves;
-    for (let i = 0; i < waves; i += 1) {
-      this.spawnShockwave(x, y, 40 + i * 18);
-    }
+    this.burstCues.push({
+      atMs: this.displayClockMs + finaleMs,
+      x,
+      y,
+      kind: 'finale',
+    });
   }
 
   spawnSpark(x: number, y: number): void {
@@ -356,6 +372,85 @@ export class FeedbackSystem {
     this.flashes.push({ rect, lifeMs: GameBalance.feel.flashDurationMs });
   }
 
+  private spawnScreenFlash(): void {
+    const rect = this.scene.add
+      .rectangle(0, 0, this.scene.scale.width, this.scene.scale.height, 0xffffff, flashAlpha(this.settings) * 0.55)
+      .setOrigin(0, 0)
+      .setDepth(DisplayDepth.vfx)
+      .setScrollFactor(0);
+    this.flashes.push({ rect, lifeMs: GameBalance.feel.bossDeath.impactFlashMs });
+  }
+
+  private spawnInternalDeathBurst(x: number, y: number): void {
+    this.spawnFlash(x, y, 18);
+    this.requestShake(
+      GameBalance.feel.shake.bossDeathInternalPx,
+      GameBalance.feel.shake.bossDeathInternalMs,
+    );
+    const particles = this.settings.reducedEffects
+      ? GameBalance.feel.bossDeath.internalParticlesReduced
+      : GameBalance.feel.bossDeath.internalParticles;
+    this.sprayParticles(x, y, particles, GameBalance.pools.particle, 70, 140);
+    this.sprayParticles(
+      x,
+      y,
+      GameBalance.feel.bossDeath.internalFragments,
+      GameBalance.pools.fragment,
+      50,
+      90,
+      TextureKey.fragment,
+    );
+  }
+
+  private spawnFinaleDeathBurst(x: number, y: number): void {
+    this.spawnFlash(x, y, 42);
+    this.requestShake(GameBalance.feel.shake.bossDeathPx, GameBalance.feel.shake.bossDeathMs);
+    const particles = this.settings.reducedEffects
+      ? GameBalance.feel.bossDeath.finaleParticlesReduced
+      : GameBalance.feel.bossDeath.finaleParticles;
+    const fragments = this.settings.reducedEffects
+      ? GameBalance.feel.bossDeath.finaleFragmentsReduced
+      : GameBalance.feel.bossDeath.finaleFragments;
+    this.sprayParticles(x, y, particles, GameBalance.pools.particle, 90, 180);
+    this.sprayParticles(x, y, fragments, GameBalance.pools.fragment, 70, 130, TextureKey.fragment);
+    const waves = this.settings.reducedEffects ? 1 : GameBalance.feel.bossDeathShockwaves;
+    for (let i = 0; i < waves; i += 1) {
+      this.spawnShockwave(x, y, 40 + i * 18);
+    }
+  }
+
+  private sprayParticles(
+    x: number,
+    y: number,
+    count: number,
+    cap: number,
+    speedMin: number,
+    speedSpan: number,
+    texture: string = TextureKey.particle,
+  ): void {
+    const pool = texture === TextureKey.fragment ? this.fragments : this.particles;
+    const life =
+      texture === TextureKey.fragment
+        ? GameBalance.feel.fragmentLifetimeMs
+        : GameBalance.feel.particleLifetimeMs;
+    for (let i = 0; i < count; i += 1) {
+      const angle = this.vfxRandom.next() * Math.PI * 2;
+      const speed = speedMin + this.vfxRandom.next() * speedSpan;
+      const tint = PARTICLE_TINTS[this.vfxRandom.nextInt(0, PARTICLE_TINTS.length - 1)] ?? 0xffb33d;
+      this.activateParticle(
+        pool,
+        cap,
+        x,
+        y,
+        tint,
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed - (texture === TextureKey.fragment ? 40 : 0),
+        life,
+        texture,
+      );
+    }
+  }
+
   private spawnShockwave(x: number, y: number, startRadius: number): void {
     const alpha = this.settings.reducedEffects ? 0.25 : 0.55;
     const arc = this.scene.add
@@ -478,7 +573,8 @@ export class FeedbackSystem {
     this.burstCues.length = 0;
     this.burstCues.push(...rest);
     for (const cue of due) {
-      this.spawnKillBurst(cue.x, cue.y);
+      if (cue.kind === 'finale') this.spawnFinaleDeathBurst(cue.x, cue.y);
+      else this.spawnInternalDeathBurst(cue.x, cue.y);
     }
   }
 

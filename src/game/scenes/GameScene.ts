@@ -22,7 +22,7 @@ import { WaveSystem } from '../systems/WaveSystem';
 import { activePhaseConfig, applyBossDamage, completeBossIntro } from '../systems/BossSystem';
 import { FeedbackSystem } from '../systems/FeedbackSystem';
 import { DisplayDepth } from '../config/display';
-import { DEFAULT_FEEL_SETTINGS, type FeelSettings } from '../domain/feel';
+import { DEFAULT_FEEL_SETTINGS, bossDeathBeatAt, type FeelSettings } from '../domain/feel';
 import { ensurePlaceholderTextures, TextureKey } from '../entities/textures';
 import {
   applyFatOverPose,
@@ -36,7 +36,7 @@ import type { PlayerHandle } from '../entities/Player';
 import { deactivateEnemy, spawnEnemy, updateFormationMovement } from '../entities/Enemy';
 import type { EnemyRuntimeData } from '../entities/Enemy';
 import { deactivateProjectile, despawnOffscreen, fireProjectile } from '../entities/Projectile';
-import { disableBossHitbox, playBossHitFlash, spawnBoss, updateBossMovement } from '../entities/Boss';
+import { disableBossHitbox, playBossHitFlash, spawnBoss, updateBossDeathPresentation, updateBossMovement } from '../entities/Boss';
 import type { BossHandle } from '../entities/Boss';
 import { waves } from '../content/waves';
 import { bullets } from '../content/bullets';
@@ -105,6 +105,7 @@ export class GameScene extends Phaser.Scene {
   private pauseButton!: Phaser.GameObjects.Text;
   private feedback!: FeedbackSystem;
   private feelSettings: FeelSettings = DEFAULT_FEEL_SETTINGS;
+  private fatOverPoseApplied = false;
 
   private readonly onVisibilityChange = (): void => {
     if (document.hidden && !this.paused && this.phase !== 'ended') {
@@ -136,6 +137,7 @@ export class GameScene extends Phaser.Scene {
     this.pendingPlayerHits = [];
     this.pendingBossHits = [];
     this.feelSettings = toFeelSettings(loadSaveData(this.storage).settings);
+    this.fatOverPoseApplied = false;
 
     ensurePlaceholderTextures(this);
     this.cameras.main.setBackgroundColor('#090615');
@@ -336,6 +338,10 @@ export class GameScene extends Phaser.Scene {
     const simRunning = !this.paused && !document.hidden && this.phase !== 'ended';
     const displayRunning = !this.paused && !document.hidden;
     this.feedback.tick(Math.min(Math.max(deltaMs, 0), 50), displayRunning);
+
+    if (this.phase === 'bossDeath' && this.boss) {
+      updateBossDeathPresentation(this.boss, this.feedback.bossDeathElapsedMs() ?? 0);
+    }
 
     const hitStopped = this.feedback.isHitStopped();
     this.clock.tick(deltaMs, simRunning && !hitStopped);
@@ -758,13 +764,17 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.pendingPlayerHits.length > 0) {
-      const hit = resolveFirstPlayerHit(this.pendingPlayerHits, isInvulnerable(this.player, nowMs));
-      this.pendingPlayerHits = [];
-      if (hit) {
-        this.bossFightNoHit = false;
-        const total = applyCalorie(this.runState.calorie, hit.calorie);
-        applyHitFlash(this.player, nowMs);
-        this.applyEvent({ type: 'PLAYER_HIT', calorie: hit.calorie, total });
+      if (this.phase === 'bossDeath' || this.phase === 'stageClear') {
+        this.pendingPlayerHits = [];
+      } else {
+        const hit = resolveFirstPlayerHit(this.pendingPlayerHits, isInvulnerable(this.player, nowMs));
+        this.pendingPlayerHits = [];
+        if (hit) {
+          this.bossFightNoHit = false;
+          const total = applyCalorie(this.runState.calorie, hit.calorie);
+          applyHitFlash(this.player, nowMs);
+          this.applyEvent({ type: 'PLAYER_HIT', calorie: hit.calorie, total });
+        }
       }
     }
   }
@@ -792,6 +802,7 @@ export class GameScene extends Phaser.Scene {
     this.phase = 'ended';
     if (reason === 'FAT_OVER') {
       applyFatOverPose(this.player);
+      this.fatOverPoseApplied = true;
       this.showCaption('FAT OVER\n満腹につき、いったん帰還。');
     }
 
@@ -903,6 +914,10 @@ export class GameScene extends Phaser.Scene {
             bossBodyEnabled: (this.boss.sprite.body as Phaser.Physics.Arcade.Body | null)?.enable ?? false,
           }
         : {}),
+      ...(this.phase === 'bossDeath'
+        ? { bossDeathBeat: bossDeathBeatAt(this.feedback.bossDeathElapsedMs() ?? 0) }
+        : {}),
+      ...(this.fatOverPoseApplied ? { fatOverPoseActive: true } : {}),
     };
   }
 

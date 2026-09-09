@@ -81,3 +81,39 @@ export function comboShakeBonusPx(combo: number): number {
   if (combo >= 50 || combo >= 25) return GameBalance.feel.shake.comboTierBonusPx;
   return 0;
 }
+
+export type BossDeathBeat = 'impact' | 'internal' | 'finale';
+
+export function bossDeathInternalCount(settings: FeelSettings): number {
+  return settings.reducedEffects
+    ? GameBalance.feel.bossDeath.internalCountReduced
+    : GameBalance.feel.bossDeath.internalCount;
+}
+
+export function bossDeathBeatAt(elapsedMs: number): BossDeathBeat {
+  if (elapsedMs >= GameBalance.feel.bossDeath.finaleMs) return 'finale';
+  if (elapsedMs >= GameBalance.feel.bossDeath.internalFirstMs) return 'internal';
+  return 'impact';
+}
+
+export function bossDeathHidesSprite(elapsedMs: number): boolean {
+  return elapsedMs >= GameBalance.feel.bossDeath.finaleMs;
+}
+
+export function bossDeathBlinkVisible(elapsedMs: number): boolean {
+  if (bossDeathHidesSprite(elapsedMs)) return false;
+  if (elapsedMs < GameBalance.feel.bossDeath.internalFirstMs) return true;
+  const period = GameBalance.feel.bossDeath.blinkPeriodMs;
+  return Math.floor(elapsedMs / period) % 2 === 0;
+}
+
+/** Stepwise squash during internal explosions; identity on impact; unused after hide. */
+export function bossDeathSquashScale(elapsedMs: number): { x: number; y: number } {
+  if (elapsedMs < GameBalance.feel.bossDeath.internalFirstMs) return { x: 1, y: 1 };
+  const { internalFirstMs, internalGapMs, finaleMs } = GameBalance.feel.bossDeath;
+  const span = Math.max(1, finaleMs - internalFirstMs);
+  const t = Math.min(1, Math.max(0, (elapsedMs - internalFirstMs) / span));
+  const steps = Math.max(1, Math.floor((finaleMs - internalFirstMs) / internalGapMs));
+  const stepped = Math.min(1, Math.floor(t * steps) / steps);
+  return { x: 1 + stepped * 0.28, y: 1 - stepped * 0.28 };
+}

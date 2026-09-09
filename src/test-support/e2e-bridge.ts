@@ -35,6 +35,8 @@ export type FatE2ERunSnapshot = {
   /** Clock-independent gameplay RNG fingerprint (fire delay + formation). */
   enemyFireDelayMs?: number[];
   enemyFormationOffsets?: number[];
+  bossDeathBeat?: 'impact' | 'internal' | 'finale';
+  fatOverPoseActive?: boolean;
 };
 
 export type FatE2ESnapshot = {

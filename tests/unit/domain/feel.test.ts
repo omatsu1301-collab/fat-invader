@@ -3,6 +3,9 @@ import { GameBalance } from '../../../src/game/config/balance';
 import { applyGameEvent, createRunState, freshComboState } from '../../../src/game/domain/run-state';
 import {
   allocateDecorativeCount,
+  bossDeathBeatAt,
+  bossDeathHidesSprite,
+  bossDeathInternalCount,
   comboTierCalloutAt,
   flashAlpha,
   killParticleCount,
@@ -71,5 +74,31 @@ describe('feel budgets (AC-201/204/211/212)', () => {
     expect(a.runState.score).toBe(b.runState.score);
     expect(a.runState.score).toBe(100);
     expect(killParticleCount(full)).not.toBe(killParticleCount(reduced));
+  });
+
+  it('keeps adopted normal-kill budgets unchanged (Gate 2 non-change)', () => {
+    expect(GameBalance.feel.killParticles).toBe(16);
+    expect(GameBalance.feel.killParticlesReduced).toBe(6);
+    expect(GameBalance.hitStop.normalKillMs).toBe(25);
+    expect(GameBalance.feel.shake.normalKillPx).toBe(2.5);
+    expect(GameBalance.feel.shake.normalKillMs).toBe(70);
+  });
+
+  it('maps boss death elapsed time into impact → internal → finale within 1.0–1.3s', () => {
+    const { internalFirstMs, finaleMs } = GameBalance.feel.bossDeath;
+    const duration = GameBalance.boss.kingBurgerMini.deathDurationMs;
+    expect(duration).toBeGreaterThanOrEqual(1000);
+    expect(duration).toBeLessThanOrEqual(1300);
+    expect(finaleMs).toBeLessThan(duration);
+    expect(bossDeathBeatAt(0)).toBe('impact');
+    expect(bossDeathBeatAt(internalFirstMs - 1)).toBe('impact');
+    expect(bossDeathBeatAt(internalFirstMs)).toBe('internal');
+    expect(bossDeathBeatAt(finaleMs - 1)).toBe('internal');
+    expect(bossDeathBeatAt(finaleMs)).toBe('finale');
+    expect(bossDeathHidesSprite(finaleMs - 1)).toBe(false);
+    expect(bossDeathHidesSprite(finaleMs)).toBe(true);
+    expect(bossDeathInternalCount(full)).toBeGreaterThanOrEqual(3);
+    expect(bossDeathInternalCount(full)).toBeLessThanOrEqual(4);
+    expect(bossDeathInternalCount(reduced)).toBe(3);
   });
 });
