@@ -1,7 +1,7 @@
 # FATインベーダー — Pixel Asset Specification
 
 **Document ID:** FI-10
-**Version:** 1.0
+**Version:** 1.1 (Codex review follow-up)
 **Status:** Style North Star 設計草案（画像未生成・Human Gate待ち）
 **Depends on:** FI-01, FI-02, FI-04, FI-05, FI-07, FI-08, FI-09
 **Last updated:** 2026-09-10
@@ -53,7 +53,7 @@ Phaser 設定（`src/game/config.ts`）: 論理解像度 `390×844`、`pixelArt:
 - Boss map: `Boss.ts` `TEXTURE_BY_BOSS.kingBurgerMini`
 - 発射: `GameScene.firePlayerShot` / `updateEnemyFire` / `bossFire`
 
-FI-04 §6.2 の最終 canvas（Player 48×48、通常敵 40×40、Boss 160×128以内）は**現行 runtime と不一致**。本仕様の安全な既定は現行サイズを維持する（§11）。
+FI-04 §6.2 の最終 canvas（Player 48×48、通常敵 40×40、Boss 160×128以内）は**現行 runtime と不一致**。North Star pilot の runtime canvas は現行サイズを維持する（§11 確定）。最終サイズ変更は実装後の Visual Gate で別判断する。
 
 ### 1.2 Visual bounds vs physics hitbox
 
@@ -130,7 +130,7 @@ Wave: `waves.stage1Wave1` のみ。Boss 警告 900ms → intro 1000ms → active
 | --- | --- |
 | `src/game/content/asset-manifest.ts` | 未作成（FI-05 は将来配置を予告） |
 | 素材 license / source / 生成条件 | なし。README Credits は「Milestone C 以降に追記予定」 |
-| `assets-src/` master | なし |
+| `assets-src/` raw / masters / processed | なし |
 | AC-440 | 外部素材ゼロのため暫定充足。ラスター導入時に必須 |
 
 FI-09 が残した未確定のうち、**ラスター向け manifest schema・配置・命名・生成条件の記録方法** を本文書で確定する。BGM/SE 音源供給は対象外（FI-09 §3-2 のまま）。
@@ -184,9 +184,9 @@ Sprite 内部は次のコアパレットと、各資産の許容拡張（§5）�
 - **Light:** 画面左上 45°。ハイライトは 1〜2 段。金属反射や SSAO 風禁止。
 - **Camera:** 正射影に近いアーケード正面。わずかな 3/4（上面が 1〜2px 見える程度）。遠近法・地面影の長いドロップシャドウ禁止。
 - **Facing:** Player は上（敵方向）。敵・Boss は下（Player 方向）。弾の進行方向がシルエットで分かること。
-- **Pixels:** 内部 anti-alias 禁止。中間 alpha（1〜254）は **アウトライン外側の 0 のみ**。Glow は sprite に焼かず VFX へ委譲。
+- **Pixels:** 内部 anti-alias 禁止。Sprite内部とoutlineはalpha 255、外部背景はalpha 0。中間alpha 1〜254は禁止。Glowや半透明表現はruntime VFXへ委譲する。
 - **Fringe:** 透明縁に `#FFFFFF` / マatting 色を残さない。
-- **Scale:** runtime で非整数 scale しない。Master は runtime の整数倍（既定 4×）。
+- **Scale:** runtime で非整数 scale しない。Canonical master は runtime の整数 4×。Raw source の解像度は固定しない。
 - **Pivot:** 全フレーム同一。既定は canvas 中心（Phaser origin 0.5, 0.5）。透明余白をフレーム間で変えない。
 
 ### 3.3 Tone (FI-08)
@@ -202,11 +202,11 @@ Sprite 内部は次のコアパレットと、各資産の許容拡張（§5）�
 
 | | Player bullet (`tex-bullet-player`) | Food bullet (`tex-bullet-fry`) |
 | --- | --- | --- |
-| 基本形 | 細い縦針。先端が尖る | 短い食品塊。丸みまたはポテトの矩形 |
-| アスペクト | 高さ ≫ 幅（6×16） | 幅 ≳ 高さ、または 1:1 に近い（14×14） |
+| 基本形 | 細い縦針。先端が尖る | 短いポテト 2〜3 本の束、または横幅 ≧ 高さの食品塊 |
+| アスペクト | 高さ ≫ 幅（幅 4〜6px、高さ 14〜16px / canvas 6×16） | 全体の外接形状は 1:1 に近い（canvas 14×14）。opaque footprint 概ね 10×10 以上 |
 | 輪郭 | 細く鋭い。外接矩形に隙間が多い | 太い dark outline が全周。外接矩形をほぼ埋める |
-| 内部 | cyan コア + 白に近い先端 1〜2px | 食材の帯（ポテトの揚げ目）1〜2 本。ハイライトは小さい |
-| 禁止 | 丸い塊、食べ物の凹凸、太い outline | 針・レーザー・縦長スラッシュ |
+| 内部 | cyan コア + 白に近い先端 1〜2px | 束ねたポテトの帯・揚げ目。ハイライトは小さい |
+| 禁止 | 丸い塊、食べ物の凹凸、太い outline | 縦針、レーザー、単独の長いポテト、縦長スラッシュ |
 
 判定テスト（実装前の加工チェック）:
 
@@ -256,16 +256,17 @@ VFX particle（8×8 未満、半透明、hitbox なし）は敵弾より小さ�
 
 ### 5.3 FRY bullet — `pixel.bullet.fry`
 
-- **読み:** 避けたいのにおいしそうなポテト 1 本。危険物なので coral の外輪を 1px 持ってよいが、主色は amber。
-- **形:** 短いフライ。両端が丸い。斜め 0〜20° まで。針にしない。
-- **canvas:** 14×14。食品が 10×10 以上を占める。
-- **禁止:** 抽象光球のまま（現行 placeholder からの脱却が AC-233 の対象）、cyan、細長いレーザー。
+- **読み:** 避けたいのにおいしそうな短いポテト 2〜3 本の束、または横幅 ≧ 高さの食品塊。危険物なので coral の外輪を 1px 持ってよいが、主色は amber。
+- **形:** 束ねた短いフライ。両端が丸い。全体シルエットは 1:1 に近づける。単独の長い 1 本や針形にしない。
+- **canvas:** 14×14。opaque footprint は概ね 10×10 以上。
+- **判別:** グレースケールおよび 1bit でも Player bullet（細い縦針）と即時判別できること。
+- **禁止:** 縦針、レーザー、単独の長いポテト、抽象光球のまま（現行 placeholder からの脱却が AC-233 の対象）、cyan。
 
 ### 5.4 Player bullet — `pixel.bullet.playerShot`
 
-- **読み:** METABOLIC SHOT。cyan コア + 先端の明るい 1〜2px。細長い。
+- **読み:** METABOLIC SHOT。cyan コア + 先端の明るい 1〜2px。細い縦針。
 - **形:** 幅 4〜6px、高さ 14〜16px のカプセルまたは尖塔。食べ物の凹凸なし。
-- **禁止:** 丸、アウトライン過多で FRY と相似になること。
+- **禁止:** 丸、束ねた食品塊、アウトライン過多で FRY と相似になること。
 
 ### 5.5 KING BURGER — `pixel.boss.kingBurger.idle`
 
@@ -281,10 +282,10 @@ VFX particle（8×8 未満、半透明、hitbox なし）は敵弾より小さ�
 
 列の意味:
 
-- **Runtime size:** Phaser に載せる canvas。現行 hitbox 計算の基準と一致させる既定値。
-- **Master size:** 編集用 PNG。runtime × 4。
-- **Frames (NS):** Style North Star で今作る枚数。
-- **Frames (later):** 承認後の最大。コード接続は別 PR。
+- **Runtime size:** Phaser に載せる canvas。現行 hitbox 計算の基準と一致させる（§11 確定）。
+- **Master size:** canonical master PNG。runtime × 4。raw source ではない。
+- **Frames (NS):** Style North Star で今作る枚数（各 1 still）。
+- **Frames (later):** 承認後の最大。animation 量産はしない。コード接続は別 PR。
 
 ### 6.1 North Star pack (generate only after Human approval of this spec)
 
@@ -296,7 +297,9 @@ VFX particle（8×8 未満、半透明、hitbox なし）は敵弾より小さ�
 | `pixel.bullet.playerShot` | `tex-bullet-player` | 味方弾 | 6×16 | 24×64 | 1 | 1（回転不要） | center | 6×16 full texture |
 | `pixel.bullet.fry` | `tex-bullet-fry` | 敵弾 FRY | 14×14 | 56×56 | 1 | 1〜2（任意の 90° 未満ゆらぎ） | center | 14×14 full texture |
 
-key 名 `tex-boss-king-burger-mini` はコード互換のため残す。リネームはコード PR かつ Human 承認。
+key 名 `tex-boss-king-burger-mini` はコード互換のため**リネームしない**（§11 確定）。
+
+列の補足: **Master size** は canonical master（runtime × 4）。Raw source の寸法は固定しない。
 
 ### 6.2 Same-cycle follow-on (after North Star stills PASS, still no mass Stage 2/3)
 
@@ -305,9 +308,9 @@ key 名 `tex-boss-king-burger-mini` はコード互換のため残す。リネ�
 | `pixel.player.rounded.idle` | `tex-player` の frame または `tex-player-rounded` | 40×40 | 160×160 | 1→idle 4 | hitbox 不変 |
 | `pixel.player.heavy.idle` | 同上 | 40×40 | 160×160 | 1→idle 4 | 同上 |
 | `pixel.player.overflowing.idle` | 同上 | 40×40 | 160×160 | 1→idle 4 | 速度 -8% 以外の能力差を描かない |
-| `pixel.player.fatOver.pose` | 任意 | 40×40 | 160×160 | 0（既定） | 既定は現行 squash を維持。差し替えは Human Gate |
+| `pixel.player.fatOver.pose` | 任意 | 40×40 | 160×160 | 0（確定） | **現行 squash を維持。** 専用 pose sheet は作らない |
 
-FAT OVER 専用シートを足しても `fatOverHoldMs` と「満腹につき、いったん帰還。」は変えない。
+FAT OVER は現行 `setScale(1.18, 0.82)` + caption 約 2.6s を維持する。`fatOverHoldMs` と「満腹につき、いったん帰還。」は変えない。
 
 ### 6.3 Explicitly out of this Pixel Art design cycle
 
@@ -329,7 +332,7 @@ FAT OVER 専用シートを足しても `fatOverHoldMs` と「満腹につき、
 1. **Physics body は `GameBalance` / entity の現行 px 値を唯一の正とする。** ドットの塗り面積で body を追従させない。
 2. Appearance tier、FAT OVER squash、Boss death squash で body を変えない。
 3. 絵の「体型がはみ出す」部分は透明 canvas 内の視覚であり、hitbox を大きくしない（FI-08: 体型を不利そのものにしない）。
-4. 敵弾 hitbox を見た目より小さくする FI-02 §8.1 は、**現行未実装**。縮小は dodge feel を変えるため別 Human Gate。本サイクルでは 14×14 のまま。
+4. 敵弾 hitbox を見た目より小さくする FI-02 §8.1 は、**現行未実装**。本サイクルでは **14×14 のまま変更しない**（§11 確定。gameplay 非変更）。
 5. 最終 PNG の opaque 画素が hitbox より大きくてよい。逆に hitbox が透明領域に食い込んでよい。読み味は outline で担保する。
 6. 実装接続時は `body.setSize` / `setOffset` をテクスチャ解像度から自動計算し直さない。現行数値を定数として残す。
 
@@ -339,19 +342,34 @@ canvas  ≠  opaque pixels  ≠  arcade body
 
 ## 8. Directories, naming, pipeline stages
 
-### 8.1 Three stages
+### 8.1 Four stages
 
 ```text
-master     人が描く / AI が出すロスレス原画。ゲームに直接載せない
-processed  palette 拘束・fringe 除去・整数縮小済み。レビュー用
-runtime    Vite が配信し Phaser が load する最終 PNG（+ 将来 atlas）
+raw source          AI画像生成から取得した原寸の未加工ファイル。解像度固定なし。上書きしない
+canonical master    runtime の整数 4× へ crop / pad / nearest 変換した編集正本
+processed runtime   palette / fringe / pivot / 透過を検証した runtime 寸法のレビュー用画像
+public runtime      Human 承認済みの配信用画像（Vite → Phaser）
 ```
+
+Raw source と canonical master を混同しない。AI 生出力を master 扱いしない。
 
 ### 8.2 Layout
 
 ```text
 assets-src/                          # git 管理。Pages に出さない
-  masters/
+  raw/
+    player/player_tier_light_idle.png
+    enemies/enemy_fry_scout_idle.png
+    bosses/boss_king_burger_idle.png
+    bullets/bullet_player.png
+    bullets/bullet_fry.png
+  masters/                           # canonical master (runtime × 4)
+    player/player_tier_light_idle.png
+    enemies/enemy_fry_scout_idle.png
+    bosses/boss_king_burger_idle.png
+    bullets/bullet_player.png
+    bullets/bullet_fry.png
+  processed/                         # processed runtime (runtime 寸法)
     player/player_tier_light_idle.png
     enemies/enemy_fry_scout_idle.png
     bosses/boss_king_burger_idle.png
@@ -364,7 +382,7 @@ assets-src/                          # git 管理。Pages に出さない
   licenses/
     <asset-id>.json                  # 下記 schema の 1 ファイルでも可
 
-public/assets/                       # Vite が dist ルートへコピー
+public/assets/                       # public runtime。Vite が dist ルートへコピー
   sprites/player/player_tier_light.png
   sprites/enemies/enemy_fry_scout.png
   sprites/bosses/boss_king_burger.png
@@ -374,7 +392,7 @@ public/assets/                       # Vite が dist ルートへコピー
 src/game/content/asset-manifest.ts   # 実装 PR で追加。本 PR では schema のみ
 ```
 
-`assets-src/` は git に含める（再現性と AC-440）。`public/assets` の未使用巨大原画は置かない。
+`assets-src/` は git に含める（再現性と AC-440）。`assets-src/raw/` は上書き禁止。`public/assets` の未使用巨大原画は置かない。
 
 FI-04 §11 の `assets/sprites/...` は意図パスである。実装上の配信ルートは **`public/assets/...`** とし、Phaser には `BASE_URL + 'assets/...'` で渡す。
 
@@ -419,8 +437,12 @@ type AssetLicense = {
   spdx: string; // e.g. 'CC0-1.0' | 'UNLICENSED' | 'LicenseRef-Internal'
   holder: string;
   url?: string;
+  termsUrl?: string; // e.g. OpenAI Terms of Use URL
+  termsEffectiveOn?: string; // YYYY-MM-DD of terms version noted
+  termsCheckedOn?: string; // YYYY-MM-DD when Human/agent recorded the check
   commercialOk: boolean;
   generativeModelTermsOk: boolean;
+  similarityRiskReviewed: boolean; // third-party / brand likeness Human review done
   notes: string;
 };
 
@@ -437,7 +459,17 @@ type AssetSource = {
 
 type ProcessingStep = {
   at: string; // ISO date
-  action: 'crop' | 'index-palette' | 'nearest-downscale' | 'defringe' | 'pivot-pad' | 'manual-pixel' | 'reject';
+  action:
+    | 'ingest-raw'
+    | 'crop'
+    | 'pad'
+    | 'nearest-to-master'
+    | 'index-palette'
+    | 'nearest-downscale'
+    | 'defringe'
+    | 'pivot-pad'
+    | 'manual-pixel'
+    | 'reject';
   operator: string;
   notes: string;
 };
@@ -446,13 +478,16 @@ type PixelAssetRecord = {
   id: PixelAssetId;
   textureKey: string; // must match TextureKey.*
   role: 'player' | 'enemy' | 'boss' | 'bullet' | 'vfx' | 'ui' | 'bg';
-  stage: 'master' | 'processed' | 'runtime';
-  masterPath: string;
-  processedPath?: string;
-  runtimePath: string;
+  stage: 'raw' | 'canonical-master' | 'processed-runtime' | 'public-runtime';
+  rawSourcePath: string;
+  rawSourceWidth: number; // recorded as-generated; not forced to runtime × N
+  rawSourceHeight: number;
+  masterPath: string; // canonical master
+  processedPath?: string; // processed runtime (review size)
+  runtimePath: string; // public runtime under assets/
   runtimeWidth: number;
   runtimeHeight: number;
-  masterWidth: number;
+  masterWidth: number; // canonical master only
   masterHeight: number;
   frameCount: number;
   frameNames: string[];
@@ -472,10 +507,25 @@ type PixelAssetRecord = {
 
 - `textureKey` が `TextureKey` に存在する。
 - `runtimePath` が `assets/` で始まり、`/` 先頭ではない。
-- `masterWidth === runtimeWidth * 4` かつ height も同様（例外は records で明示）。
+- **Canonical master のみ** `masterWidth === runtimeWidth * 4` かつ height も同様（例外は records で明示）。**Raw source にはこの検証を適用しない。**
+- `rawSourcePath` / `rawSourceWidth` / `rawSourceHeight` が記録されている（AI 生成時）。
+- AI 生成時は `license.termsUrl` / `termsEffectiveOn` / `termsCheckedOn` / `similarityRiskReviewed` が埋まっている。
 - `hitbox` を持つなら値が `GameBalance` / 現行 entity と一致。
-- `humanGate === 'approved'` のものだけ runtime 差替の候補。
-- `license.generativeModelTermsOk === false` の AI 素材は runtime に出せない。
+- `humanGate === 'approved'` のものだけ public runtime 差替の候補。
+- `license.generativeModelTermsOk === false` の AI 素材は public runtime に出せない。
+
+### 9.1 ChatGPT / OpenAI terms recording (not legal advice)
+
+生成ツールは **ChatGPT 画像生成** とする（§11 確定）。manifest には次を記録する。法的保証とは表現しない。
+
+| 記録項目 | 内容 |
+| --- | --- |
+| `termsUrl` | `https://openai.com/policies/row-terms-of-use/` |
+| `termsEffectiveOn` | 確認時点で参照した Terms の発効日（YYYY-MM-DD） |
+| `termsCheckedOn` | 本プロジェクトで規約を確認した日（YYYY-MM-DD） |
+| 関係の要約（`notes`） | OpenAI との関係上、ユーザーが Output を所有する旨を記録する |
+| 非独自性 | Output は非独自の場合がある旨を `notes` に残す |
+| `similarityRiskReviewed` | 第三者の権利侵害・ブランド類似を Human review で確認したか |
 
 Credits 行の生成元はこの manifest とする（AC-440）。
 
@@ -484,17 +534,18 @@ Credits 行の生成元はこの manifest とする（AC-440）。
 ```text
 0. 本仕様の Human 承認（Style North Star 文書 Gate）
      未承認なら画像を作らない
-1. North Star 5 still だけ生成（master）
-2. 加工: crop / palette index / nearest 4×→1× / defringe / pivot 統一
-3. チェックリスト（§10.1）を processed に対して実施
-4. Human visual Gate（4 問: 読める / おいしそう / 気持ちいい土台 / 侮辱でない）
-5. 承認された still のみ public/assets へコピー + manifest 記入
-6. 実装 PR（別）: BootScene preload、TextureKey 差し替え、fallback 維持
+1. North Star 5 still だけを ChatGPT 画像生成で作成し assets-src/raw/ に保存（上書きしない）
+2. raw → canonical master: crop / pad / nearest で runtime × 4 へ変換（assets-src/masters/）
+3. master → processed runtime: palette index / nearest 4×→1× / defringe / pivot 統一
+4. チェックリスト（§10.1）を processed runtime に対して実施
+5. Human visual Gate（絵柄・可読性・食欲・風刺境界）
+6. 承認された still のみ public/assets へコピー + manifest 記入
+7. 実装 PR（別）: BootScene preload、TextureKey 差し替え、fallback 維持
      GameBalance / hitbox / feel timings は変更しない
-7. Desktop + Mobile で Title→Play→Kill→Boss→FAT OVER / Result を目視
-8. AC-232 / AC-233 を Human 再判定（§12）
-9. 承認後に限って Player 残り 3 tier など Stage 1 follow-on
-10. Stage 2/3・背景・Result art は Milestone C。この順序を飛ばさない
+8. Desktop + Mobile で Title→Play→Kill→Boss→FAT OVER / Result を目視
+9. AC-232 / AC-233 を Human 再判定（§12）
+10. Player Light 承認後に残り 3 tier（各 1 still）。animation 量産はしない
+11. Stage 2/3・背景・Result art は Milestone C。この順序を飛ばさない
 ```
 
 画像生成 PR とコード接続 PR を混ぜない。Feel 調整 PR とも混ぜない。
@@ -504,27 +555,31 @@ Credits 行の生成元はこの manifest とする（AC-440）。
 - [ ] 390×844 相当（論理 px）で輪郭が読める
 - [ ] Nearest 拡大で滲みがない
 - [ ] 透明縁に白 fringe がない
+- [ ] Sprite内部とoutlineはalpha 255、外部はalpha 0（中間alpha禁止）
 - [ ] パレット外色が無い（例外は manifest に hex を追加して Human 承認）
-- [ ] Player 弾と FRY 弾が無彩色でも区別できる
+- [ ] Player 弾（縦針）と FRY 弾（束 / 1:1 塊）がグレースケールおよび 1bit でも区別できる
 - [ ] FRY SCOUT / KING BURGER が食品として魅力的
 - [ ] Player Light が有能で愛嬌がある
-- [ ] 実在 brand に見えない
+- [ ] 実在 brand に見えない（similarityRiskReviewed）
 - [ ] opaque 範囲が「次フレームも同じ pivot」で中央寄せ
-- [ ] ファイルサイズと 4× master が揃っている
+- [ ] canonical master が runtime × 4（raw 寸法は問わない）
+- [ ] rawSourcePath / termsUrl / termsEffectiveOn / termsCheckedOn が manifest にある
 
-## 11. Defaults vs Human decisions
+## 11. Technical decisions (locked)
 
-安全な既定（承認待ち中も文書としてはこれに従う）:
+次は本ドキュメント内で確定する。画像生成 PR・実装 PR で再オープンしない。最終 canvas サイズの変更だけは実装後 Visual Gate の別判断とする。
 
-| 項目 | 既定 | 代替 | 影響 |
-| --- | --- | --- | --- |
-| Runtime canvas | 現行 40 / 28 / 96×72 / 6×16 / 14×14 | FI-04 の 48 / 40 / 160×128 | 見た目の占有率が変わる。hitbox を追従させなければ戦闘は不変だが、被弾しやすさの**体感**は変わる |
-| Master 倍率 | 4× | 2× | 2× は AI ディテールが足りないリスク |
-| 初回実装フレーム | 各 1 idle | FI-04 フル animation | コード量が走る。Feel 非変更なら 1 枚で足りる |
-| FAT OVER 絵 | 現行 squash を維持 | 専用 pose sheet | 2.6s HOLD は不変でも印象が変わる |
-| 敵弾 hitbox | テクスチャ全面 | 見た目の 70〜80% | **gameplay 変更**。art PR でやらない |
-| Boss texture key | `tex-boss-king-burger-mini` 維持 | `tex-boss-king-burger` | コード変更 |
-| 生成ツール | Human が指定するまで生成しない | — | 権利条項がツール依存 |
+| 項目 | 確定内容 |
+| --- | --- |
+| North Star pilot runtime canvas | 現行サイズ維持（Player 40×40、FRY SCOUT 28×28、Boss 96×72、player bullet 6×16、FRY bullet 14×14） |
+| FI-04 §6.2 へのサイズ移行 | 実装後の Visual Gate で別判断。本 pilot では行わない |
+| Canonical master 倍率 | runtime × 4。raw source には適用しない |
+| 生成ツール | ChatGPT 画像生成。Terms 記録は §9.1 |
+| Player tiers | Player Light 承認後に残り 3 tier を制作 |
+| 初回フレーム | 各 1 still。animation 量産はしない |
+| FAT OVER | 現行 squash（`setScale(1.18, 0.82)`）+ 約 2.6s を維持。専用 pose sheet なし |
+| Boss texture key | `tex-boss-king-burger-mini` をリネームしない |
+| 敵弾 hitbox | 14×14 のまま変更しない |
 
 ## 12. AC-232 / AC-233 evidence plan
 
@@ -579,15 +634,10 @@ Gate パッケージは FI-04 §15 に寄せ、最低でも Mobile 通常戦闘�
 
 ## 14. Open questions for Human
 
-文書 Gate で明示してほしい項目。推奨は太字。
+文書 Gate / still Gate で明示してほしい項目は次の 2 点のみ。§11 の技術決定はここへ戻さない。
 
-1. **本仕様を Style North Star の正として承認するか。** 承認前は生成しない。
-2. Runtime canvas を現行サイズのままにするか、FI-04 §6.2 へ移行するか。**推奨: 現行維持。**
-3. 生成ツールと商用条件（どのモデルで、出力の再配布が許されるか）。指定があるまで生成しない。
-4. Player 4 tier を Light 承認後に順次作るか、4 枚同時か。**推奨: Light 承認後に 3 枚。**
-5. FAT OVER を squash のままにするか、専用 pose を足すか。**推奨: squash 維持。**
-6. `tex-boss-king-burger-mini` のリネームを許可するか。**推奨: このサイクルではしない。**
-7. 敵弾 hitbox を FI-02 どおり小さくするか。**推奨: しない（gameplay）。**
+1. **修正版 FI-10 を Style North Star 文書の正として承認するか。** 承認前は画像を生成しない。
+2. **生成後の 5 still が絵柄・可読性・食欲・風刺境界を満たすか。**（Player Light / FRY SCOUT / FRY bullet / Player bullet / KING BURGER）
 
 BGM/SE 権利（FI-09 §3-2）は本仕様の対象外。音源方針は Sound mix 工程で別途。
 
@@ -596,9 +646,10 @@ BGM/SE 権利（FI-09 §3-2）は本仕様の対象外。音源方針は Sound m
 | Severity | Finding | Disposition |
 | --- | --- | --- |
 | — | 画像・コード・Feel 数値をこの PR で変えていない | PASS 条件 |
-| Major 回避 | FI-04 canvas と実装サイズの矛盾を黙って片方へ寄せない | §11 で Human 判断化 |
-| Major 回避 | Boss death / FAT OVER をアニメ枚数で上書きしない | §2, §5.5, §6.2 |
-| Minor | `bullet.fry.size = 12` と texture 14 の不一致 | 記録のみ。hitbox は 14 |
+| Major 回避 | raw source と canonical master を分離 | §8 / §9 |
+| Major 回避 | FRY 弾を縦針にしない（束 / 1:1 塊） | §4 / §5.3 |
+| Major 回避 | Boss death / FAT OVER をアニメ枚数で上書きしない | §2, §5.5, §6.2, §11 |
+| Minor | `bullet.fry.size = 12` と texture 14 の不一致 | 記録のみ。hitbox は 14 で確定 |
 | Minor | AC-117 の専用 integration test が薄い | コード非変更のため本 PR では触らない |
 
-Critical / Major の未処理なし。未確定は §14 の Human Gate のみ。
+Critical / Major の未処理なし。Human Gate は §14 の 2 項目のみ。

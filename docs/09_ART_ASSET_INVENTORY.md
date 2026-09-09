@@ -72,7 +72,7 @@ CLAUDE.md Autonomy Rules「Art directionの大幅変更」「既存の判断に�
 ## 4. Asset pipeline確定状況(FI-06 Work order step 1の残り)
 
 - **確定済み:** 素材制作方針(強化placeholder先行、§3-1)、texture/audio keyを最終素材へ差し替え可能に保つ設計方針(§3-1)。
-- **草案 (FI-10):** Pixel Asset Spec、Style North Star 5 still、master/processed/runtime 配置、命名、manifest schema、AC-232/233 証拠計画。Human 承認と画像生成は未着手。詳細は [`docs/10_PIXEL_ASSET_SPEC.md`](./10_PIXEL_ASSET_SPEC.md)。
+- **草案 (FI-10):** Pixel Asset Spec、Style North Star 5 still、raw / canonical master / processed / public runtime 配置、命名、manifest schema、AC-232/233 証拠計画。Human 承認と画像生成は未着手。詳細は [`docs/10_PIXEL_ASSET_SPEC.md`](./10_PIXEL_ASSET_SPEC.md)。
 - **未確定:** `asset-manifest.ts` の**実体**（TypeScript ファイル未作成）、素材licenseの実記入、BGM/SE音源供給方法(§3-2)。FI-05のディレクトリ構成は `src/game/content/asset-manifest.ts` を将来配置として明記している。schema 草案は FI-10 §9。
 - **保留期限:** ラスター接続は Style North Star Human Gate 後。BGM/SE は Work order step 7 着手直前までに確定すればよい。それまでWork order step 1は「asset pipeline確定」の部分が未完了のまま残る。
 
