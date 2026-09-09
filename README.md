@@ -8,7 +8,7 @@
 
 **Milestone A — Vertical Slice: 完了 (Human Gate 1 PASS).** Title → Play → 1 Stage（FRY SCOUT 編隊 → KING BURGER 簡易ボス）→ Stage Clear / FAT OVER → Result → Retry が一本のRunとして通しで遊べる。仮素材・図形ベース。Human Gate 1（採用判断）はPC操作・コア体験・Boss進行を含めて正式PASS。公開版（GitHub Pages）でのProduction Smoke TestもPASS済み。
 
-現在: **Milestone B — Game Feel and Art Vertical Slice** 準備中。詳細は [`docs/06_IMPLEMENTATION_ROADMAP.md`](./docs/06_IMPLEMENTATION_ROADMAP.md) §5、Art asset inventoryは [`docs/09_ART_ASSET_INVENTORY.md`](./docs/09_ART_ASSET_INVENTORY.md) を参照。
+現在: **Milestone B — Game Feel.** Human Gate 2 は **CONDITIONAL PASS / 修正付き採用**（正式PASSではない）。通常撃破feelは採用。Boss death は Human PASS「めっちゃいいね」（3-beat非変更）。FAT OVER pose は約2.6秒保持。AC-232/233は最終素材後に再判定。詳細は [`docs/06_IMPLEMENTATION_ROADMAP.md`](./docs/06_IMPLEMENTATION_ROADMAP.md) §5。
 
 ## Requirements
 

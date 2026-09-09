@@ -182,7 +182,7 @@ test.describe('Vertical slice', () => {
     // Blocker 1 fix proof: the boss must go down via a real player-projectile
     // collision, not a debug "defeat" shortcut.
     await defeatBossWithRealCollision(page, box, isMobile);
-    await waitForScene(page, 'ResultScene', 6000);
+    await waitForScene(page, 'ResultScene', 8000);
 
     const resultSnapshot = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot());
     expect(resultSnapshot?.run?.endReason).toBe('CLEAR');
@@ -205,7 +205,7 @@ test.describe('Vertical slice', () => {
 
     const box = await startRun(page, 'e2e-fat-over');
     await page.evaluate(() => window.__FAT_E2E__?.debugApplyPlayerCalorie(100));
-    await waitForScene(page, 'ResultScene', 4000);
+    await waitForScene(page, 'ResultScene', 6000);
 
     const snapshot = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot());
     expect(snapshot?.run?.endReason).toBe('FAT_OVER');
@@ -282,6 +282,7 @@ test.describe('Vertical slice', () => {
   test('restarting 10 times never leaks state or SHUTDOWN listeners into the next run (AC-135/136)', async ({
     page,
   }) => {
+    test.setTimeout(90_000);
     const consoleErrors: string[] = [];
     const pageErrors: string[] = [];
     page.on('console', (msg) => {
@@ -322,7 +323,7 @@ test.describe('Vertical slice', () => {
       await page.keyboard.up('Space');
 
       await page.evaluate(() => window.__FAT_E2E__?.debugApplyPlayerCalorie(100));
-      await waitForScene(page, 'ResultScene', 4000);
+      await waitForScene(page, 'ResultScene', 6000);
 
       const canvas = page.locator('canvas');
       const box = await canvas.boundingBox();
@@ -458,6 +459,6 @@ test.describe('Vertical slice', () => {
     const finalRun = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
     expect(finalRun?.bossesKilled).toBe(1);
 
-    await waitForScene(page, 'ResultScene', 6000);
+    await waitForScene(page, 'ResultScene', 8000);
   });
 });

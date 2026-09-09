@@ -10,7 +10,8 @@ import type { RunEndReason, RunState } from '../domain/run-state';
 import { evaluateRun } from '../domain/evaluation';
 import { stageClearBonus, bossNoHitBonus } from '../domain/scoring';
 import { PhaserClock } from '../adapters/PhaserClock';
-import { SeededRandom, generateRuntimeSeed } from '../adapters/SeededRandom';
+import { SeededRandom, createRunRandomSources, generateRuntimeSeed } from '../adapters/SeededRandom';
+import { rollEnemyFireDelayMs } from '../domain/combat-rng';
 import { LocalStorageAdapter } from '../adapters/LocalStorageAdapter';
 import { loadSaveData, recordScoreAndRank } from '../systems/PersistenceSystem';
 import { InputSystem } from '../systems/InputSystem';
@@ -19,8 +20,12 @@ import type { PendingEnemyHit, PendingPlayerHit } from '../systems/CombatSystem'
 import type { ProjectilePayload } from '../entities/Projectile';
 import { WaveSystem } from '../systems/WaveSystem';
 import { activePhaseConfig, applyBossDamage, completeBossIntro } from '../systems/BossSystem';
+import { FeedbackSystem } from '../systems/FeedbackSystem';
+import { DisplayDepth } from '../config/display';
+import { DEFAULT_FEEL_SETTINGS, bossDeathBeatAt, type FeelSettings } from '../domain/feel';
 import { ensurePlaceholderTextures, TextureKey } from '../entities/textures';
 import {
+  applyFatOverPose,
   applyHitFlash,
   createPlayer,
   isInvulnerable,
@@ -31,7 +36,7 @@ import type { PlayerHandle } from '../entities/Player';
 import { deactivateEnemy, spawnEnemy, updateFormationMovement } from '../entities/Enemy';
 import type { EnemyRuntimeData } from '../entities/Enemy';
 import { deactivateProjectile, despawnOffscreen, fireProjectile } from '../entities/Projectile';
-import { disableBossHitbox, playBossHitFlash, spawnBoss, updateBossMovement } from '../entities/Boss';
+import { disableBossHitbox, playBossHitFlash, spawnBoss, updateBossDeathPresentation, updateBossMovement } from '../entities/Boss';
 import type { BossHandle } from '../entities/Boss';
 import { waves } from '../content/waves';
 import { bullets } from '../content/bullets';
@@ -49,6 +54,7 @@ type Phase =
   | 'bossWarning'
   | 'bossIntro'
   | 'bossActive'
+  | 'bossDeath'
   | 'stageClear'
   | 'ended';
 
@@ -62,7 +68,8 @@ const COLOR_BURN_LIME = '#B9FF4A';
 
 export class GameScene extends Phaser.Scene {
   private clock = new PhaserClock();
-  private random!: SeededRandom;
+  private gameplayRandom!: SeededRandom;
+  private vfxRandom!: SeededRandom;
   private storage = new LocalStorageAdapter();
   private eventBus = new GameEventBus();
   private inputSystem!: InputSystem;
@@ -96,6 +103,10 @@ export class GameScene extends Phaser.Scene {
   private captionText!: Phaser.GameObjects.Text;
   private pauseOverlay!: Phaser.GameObjects.Container;
   private pauseButton!: Phaser.GameObjects.Text;
+  private feedback!: FeedbackSystem;
+  private feelSettings: FeelSettings = DEFAULT_FEEL_SETTINGS;
+  private fatOverPoseApplied = false;
+  private runEndedCount = 0;
 
   private readonly onVisibilityChange = (): void => {
     if (document.hidden && !this.paused && this.phase !== 'ended') {
@@ -112,7 +123,9 @@ export class GameScene extends Phaser.Scene {
 
     const seedOverride = this.registry.get(E2E_SEED_REGISTRY_KEY) as string | undefined;
     const seed = seedOverride ?? generateRuntimeSeed();
-    this.random = new SeededRandom(seed);
+    const rng = createRunRandomSources(seed);
+    this.gameplayRandom = rng.gameplayRandom;
+    this.vfxRandom = rng.vfxRandom;
     this.runState = createRunState(seed, 0);
     this.comboState = setFrozen(freshComboState(), true, 0);
     this.phase = 'stageIntro';
@@ -124,6 +137,9 @@ export class GameScene extends Phaser.Scene {
     this.pendingEnemyHits = [];
     this.pendingPlayerHits = [];
     this.pendingBossHits = [];
+    this.feelSettings = toFeelSettings(loadSaveData(this.storage).settings);
+    this.fatOverPoseApplied = false;
+    this.runEndedCount = 0;
 
     ensurePlaceholderTextures(this);
     this.cameras.main.setBackgroundColor('#090615');
@@ -176,7 +192,17 @@ export class GameScene extends Phaser.Scene {
 
     this.inputSystem = new InputSystem(this, isMobileViewport());
 
+    this.feedback = new FeedbackSystem(
+      this,
+      this.feelSettings,
+      this.vfxRandom,
+      this.eventBus,
+      () => ({ x: this.player.sprite.x, y: this.player.sprite.y }),
+      () => (this.boss ? { x: this.boss.sprite.x, y: this.boss.sprite.y } : null),
+    );
+
     this.buildHud();
+    this.lockHudToCamera();
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
@@ -189,7 +215,7 @@ export class GameScene extends Phaser.Scene {
   private buildHud(): void {
     this.scoreText = this.add
       .text(16, 12, 'SCORE 0', { fontFamily: 'monospace', fontSize: '16px', color: COLOR_MILK_CREAM })
-      .setDepth(10);
+      .setDepth(DisplayDepth.hud);
 
     this.comboText = this.add
       .text(LOGICAL_WIDTH / 2, 12, '', {
@@ -198,17 +224,21 @@ export class GameScene extends Phaser.Scene {
         color: COLOR_BURN_LIME,
       })
       .setOrigin(0.5, 0)
-      .setDepth(10);
+      .setDepth(DisplayDepth.hud);
 
     this.calorieLabel = this.add
       .text(16, 34, 'CALORIE 0', { fontFamily: 'monospace', fontSize: '12px', color: COLOR_UI_MUTED })
-      .setDepth(10);
+      .setDepth(DisplayDepth.hud);
 
-    this.add.rectangle(16, 30 + 22, 140, 8, 0x21102f).setOrigin(0, 0.5).setDepth(10);
+    this.add
+      .rectangle(16, 30 + 22, 140, 8, 0x21102f)
+      .setOrigin(0, 0.5)
+      .setDepth(DisplayDepth.hud)
+      .setScrollFactor(0);
     this.calorieBarFill = this.add
       .rectangle(16, 30 + 22, 0, 8, 0x53f6ff)
       .setOrigin(0, 0.5)
-      .setDepth(10);
+      .setDepth(DisplayDepth.hud);
 
     // Milestone A causal-confirmation UI (not final art): lets a player see
     // that their shots are actually damaging the boss. Read-only display of
@@ -221,17 +251,17 @@ export class GameScene extends Phaser.Scene {
         color: COLOR_UI_MUTED,
       })
       .setOrigin(0.5)
-      .setDepth(10)
+      .setDepth(DisplayDepth.hud)
       .setVisible(false);
     this.bossHpBarBg = this.add
       .rectangle(LOGICAL_WIDTH / 2, 60, bossBarWidth, 8, 0x21102f)
       .setOrigin(0.5, 0.5)
-      .setDepth(10)
+      .setDepth(DisplayDepth.hud)
       .setVisible(false);
     this.bossHpBarFill = this.add
       .rectangle(LOGICAL_WIDTH / 2 - bossBarWidth / 2, 60, bossBarWidth, 8, 0xff4f64)
       .setOrigin(0, 0.5)
-      .setDepth(11)
+      .setDepth(DisplayDepth.hud + 1)
       .setVisible(false);
 
     this.pauseButton = this.add
@@ -241,7 +271,7 @@ export class GameScene extends Phaser.Scene {
         color: COLOR_MILK_CREAM,
       })
       .setOrigin(1, 0)
-      .setDepth(10)
+      .setDepth(DisplayDepth.hud)
       .setInteractive({ useHandCursor: true });
     this.pauseButton.on('pointerdown', () => this.togglePause());
 
@@ -253,9 +283,9 @@ export class GameScene extends Phaser.Scene {
         align: 'center',
       })
       .setOrigin(0.5)
-      .setDepth(20);
+      .setDepth(DisplayDepth.caption);
 
-    this.pauseOverlay = this.add.container(0, 0).setDepth(30).setVisible(false);
+    this.pauseOverlay = this.add.container(0, 0).setDepth(DisplayDepth.pause).setVisible(false);
     const overlayBg = this.add
       .rectangle(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT, 0x090615, 0.7)
       .setOrigin(0, 0);
@@ -283,19 +313,45 @@ export class GameScene extends Phaser.Scene {
     this.captionText.setVisible(false);
   }
 
+  private lockHudToCamera(): void {
+    const hud = [
+      this.scoreText,
+      this.comboText,
+      this.calorieLabel,
+      this.calorieBarFill,
+      this.bossHpLabel,
+      this.bossHpBarBg,
+      this.bossHpBarFill,
+      this.pauseButton,
+      this.captionText,
+      this.pauseOverlay,
+    ];
+    for (const obj of hud) {
+      obj.setScrollFactor(0);
+    }
+  }
+
   update(_time: number, deltaMs: number): void {
     const intent = this.inputSystem.poll();
     if (intent.pauseRequested) {
       this.togglePause();
     }
 
-    const isRunning = !this.paused && !document.hidden && this.phase !== 'ended';
-    this.clock.tick(deltaMs, isRunning);
+    const simRunning = !this.paused && !document.hidden && this.phase !== 'ended';
+    const displayRunning = !this.paused && !document.hidden;
+    this.feedback.tick(Math.min(Math.max(deltaMs, 0), 50), displayRunning);
+
+    if (this.phase === 'bossDeath' && this.boss) {
+      updateBossDeathPresentation(this.boss, this.feedback.bossDeathElapsedMs() ?? 0);
+    }
+
+    const hitStopped = this.feedback.isHitStopped();
+    this.clock.tick(deltaMs, simRunning && !hitStopped);
     this.updateHud();
     this.updateBossHpBar();
     publishRunSnapshot(this.game, this.buildSnapshot());
 
-    if (!isRunning) return;
+    if (!simRunning || hitStopped) return;
 
     const nowMs = this.clock.nowMs();
     const dt = this.clock.lastDeltaMs();
@@ -348,6 +404,11 @@ export class GameScene extends Phaser.Scene {
       case 'bossActive':
         this.updateBossActive(nowMs, dt);
         break;
+      case 'bossDeath':
+        if (nowMs - this.phaseStartedAtMs >= GameBalance.boss.kingBurgerMini.deathDurationMs) {
+          this.enterPhase('stageClear', nowMs);
+        }
+        break;
       case 'stageClear':
       case 'ended':
         break;
@@ -379,7 +440,7 @@ export class GameScene extends Phaser.Scene {
       const spacingX = 90;
       const x = 60 + cmd.gridX * spacingX;
       const y = 110 + cmd.gridY * 60;
-      spawnEnemy(this.enemiesGroup, cmd.enemyId, x, y, nowMs, this.random);
+      spawnEnemy(this.enemiesGroup, cmd.enemyId, x, y, nowMs, this.gameplayRandom);
     }
 
     const descentPxPerSec =
@@ -418,7 +479,9 @@ export class GameScene extends Phaser.Scene {
       bulletDef.speedPxPerSec,
       { kind: 'enemy', damage: 0, calorie: bulletDef.calorie, bulletId: bulletDef.id },
     );
-    runtime.nextFireAtMs = nowMs + def.fireRateMs + this.random.nextInt(0, def.fireIntervalJitterMs);
+    const delay = rollEnemyFireDelayMs(this.gameplayRandom, def.fireRateMs, def.fireIntervalJitterMs);
+    runtime.lastFireDelayMs = delay;
+    runtime.nextFireAtMs = nowMs + delay;
   }
 
   private despawnEnemyOffscreen(sprite: Phaser.Physics.Arcade.Sprite): void {
@@ -694,19 +757,26 @@ export class GameScene extends Phaser.Scene {
       }
       if (result.defeated) {
         disableBossHitbox(this.boss);
+        this.convertEnemyBulletsToSparks();
         this.applyEvent({ type: 'BOSS_DEFEATED', bossId: this.boss.bossId });
-        this.enterPhase('stageClear', nowMs);
+        this.comboState = setFrozen(this.comboState, true, nowMs);
+        this.phase = 'bossDeath';
+        this.phaseStartedAtMs = nowMs;
       }
     }
 
     if (this.pendingPlayerHits.length > 0) {
-      const hit = resolveFirstPlayerHit(this.pendingPlayerHits, isInvulnerable(this.player, nowMs));
-      this.pendingPlayerHits = [];
-      if (hit) {
-        this.bossFightNoHit = false;
-        const total = applyCalorie(this.runState.calorie, hit.calorie);
-        applyHitFlash(this.player, nowMs);
-        this.applyEvent({ type: 'PLAYER_HIT', calorie: hit.calorie, total });
+      if (this.phase === 'bossDeath' || this.phase === 'stageClear') {
+        this.pendingPlayerHits = [];
+      } else {
+        const hit = resolveFirstPlayerHit(this.pendingPlayerHits, isInvulnerable(this.player, nowMs));
+        this.pendingPlayerHits = [];
+        if (hit) {
+          this.bossFightNoHit = false;
+          const total = applyCalorie(this.runState.calorie, hit.calorie);
+          applyHitFlash(this.player, nowMs);
+          this.applyEvent({ type: 'PLAYER_HIT', calorie: hit.calorie, total });
+        }
       }
     }
   }
@@ -723,6 +793,7 @@ export class GameScene extends Phaser.Scene {
     this.eventBus.emit(event);
 
     if (!hadEnded && this.runState.endReason) {
+      this.runEndedCount += 1;
       if (event.type !== 'RUN_ENDED') {
         this.eventBus.emit({ type: 'RUN_ENDED', reason: this.runState.endReason });
       }
@@ -732,10 +803,9 @@ export class GameScene extends Phaser.Scene {
 
   private onRunEnded(reason: RunEndReason): void {
     this.phase = 'ended';
-    // Freeze all motion/collision immediately so residual enemy bullets (or
-    // a boss corpse) can never register a hit after the run has concluded.
-    this.physics.world.pause();
     if (reason === 'FAT_OVER') {
+      applyFatOverPose(this.player);
+      this.fatOverPoseApplied = true;
       this.showCaption('FAT OVER\n満腹につき、いったん帰還。');
     }
 
@@ -760,7 +830,11 @@ export class GameScene extends Phaser.Scene {
 
     const { isNewHighScore } = recordScoreAndRank(this.storage, saveData, this.runState.score, rank);
 
-    this.time.delayedCall(1600, () => {
+    publishRunSnapshot(this.game, this.buildSnapshot());
+
+    const holdMs =
+      reason === 'FAT_OVER' ? GameBalance.feel.fatOverHoldMs : GameBalance.feel.clearHoldMs;
+    this.time.delayedCall(holdMs, () => {
       this.scene.start('ResultScene', {
         runState: this.runState,
         evaluationScore,
@@ -777,6 +851,7 @@ export class GameScene extends Phaser.Scene {
       this.physics.world.pause();
     } else {
       this.physics.world.resume();
+      this.feedback.clearHitStop();
     }
     this.pauseOverlay.setVisible(this.paused);
   }
@@ -828,6 +903,10 @@ export class GameScene extends Phaser.Scene {
       shutdownListenerCount: this.events.listenerCount(Phaser.Scenes.Events.SHUTDOWN),
       activePlayerProjectiles: countActive(this.playerProjectiles),
       activeEnemyProjectiles: countActive(this.enemyProjectiles),
+      activeEnemies: countActive(this.enemiesGroup),
+      enemyFireDelayMs: this.collectEnemyFireDelays(),
+      enemyFormationOffsets: this.collectEnemyFormationOffsets(),
+      ...this.feelSnapshot(),
       ...(this.runState.endReason ? { endReason: this.runState.endReason } : {}),
       ...(this.boss
         ? {
@@ -839,6 +918,14 @@ export class GameScene extends Phaser.Scene {
             bossSpriteVisible: this.boss.sprite.visible,
             bossBodyEnabled: (this.boss.sprite.body as Phaser.Physics.Arcade.Body | null)?.enable ?? false,
           }
+        : {}),
+      ...(this.phase === 'bossDeath'
+        ? { bossDeathBeat: bossDeathBeatAt(this.feedback.bossDeathElapsedMs() ?? 0) }
+        : {}),
+      ...(this.fatOverPoseApplied ? { fatOverPoseActive: true } : {}),
+      runEndedCount: this.runEndedCount,
+      ...(this.captionText.visible && this.captionText.text
+        ? { caption: this.captionText.text }
         : {}),
     };
   }
@@ -869,10 +956,86 @@ export class GameScene extends Phaser.Scene {
       debugApplyPlayerCalorie: (amount: number): void => {
         this.pendingPlayerHits.push({ calorie: amount, source: 'contact' });
       },
+      debugSetFeelSettings: (settings): void => {
+        this.feelSettings = {
+          reducedEffects: settings.reducedEffects ?? this.feelSettings.reducedEffects,
+          screenShake: settings.screenShake ?? this.feelSettings.screenShake,
+        };
+        this.feedback.setSettings(this.feelSettings);
+      },
+      debugSetCombo: (combo): void => {
+        const next = Math.max(0, Math.floor(combo));
+        this.runState = {
+          ...this.runState,
+          combo: next,
+          maxCombo: Math.max(this.runState.maxCombo, next),
+        };
+        this.eventBus.emit({ type: 'COMBO_TIER_CHANGED', combo: next, multiplier: 1 });
+      },
+      debugSaturateVfxCaps: (): void => {
+        this.feedback.saturateDecorativeCapsForDebug();
+        publishRunSnapshot(this.game, this.buildSnapshot());
+      },
+      debugPlayDisplayKill: (): void => {
+        this.feedback.playDisplayKillForDebug(this.player.sprite.x, this.player.sprite.y);
+      },
+    };
+  }
+
+  private convertEnemyBulletsToSparks(): void {
+    for (const child of this.enemyProjectiles.children) {
+      const sprite = child as Phaser.Physics.Arcade.Sprite;
+      if (!sprite.active) continue;
+      this.feedback.spawnSpark(sprite.x, sprite.y);
+      deactivateProjectile(sprite);
+    }
+  }
+
+  private collectEnemyFireDelays(): number[] {
+    const delays: number[] = [];
+    for (const child of this.enemiesGroup.children) {
+      const sprite = child as Phaser.Physics.Arcade.Sprite;
+      if (!sprite.active) continue;
+      const runtime = sprite.getData('enemy') as EnemyRuntimeData | undefined;
+      if (runtime) delays.push(runtime.lastFireDelayMs);
+    }
+    delays.sort((a, b) => a - b);
+    return delays;
+  }
+
+  private collectEnemyFormationOffsets(): number[] {
+    const offsets: number[] = [];
+    for (const child of this.enemiesGroup.children) {
+      const sprite = child as Phaser.Physics.Arcade.Sprite;
+      if (!sprite.active) continue;
+      const runtime = sprite.getData('enemy') as EnemyRuntimeData | undefined;
+      if (runtime) offsets.push(runtime.formationPhaseOffset);
+    }
+    offsets.sort((a, b) => a - b);
+    return offsets;
+  }
+
+  private feelSnapshot(): {
+    activeParticles: number;
+    activeFragments: number;
+    activeScorePopups: number;
+    shakePx: number;
+    reducedEffects: boolean;
+    screenShake: FeelSettings['screenShake'];
+  } {
+    const tel = this.feedback.telemetry();
+    return {
+      activeParticles: tel.activeParticles,
+      activeFragments: tel.activeFragments,
+      activeScorePopups: tel.activeScorePopups,
+      shakePx: tel.shakePx,
+      reducedEffects: this.feelSettings.reducedEffects,
+      screenShake: this.feelSettings.screenShake,
     };
   }
 
   private handleShutdown(): void {
+    this.feedback.destroy();
     this.inputSystem.destroy();
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.time.removeAllEvents();
@@ -892,4 +1055,14 @@ function countActive(group: Phaser.Physics.Arcade.Group): number {
     if ((child as Phaser.Physics.Arcade.Sprite).active) count += 1;
   }
   return count;
+}
+
+function toFeelSettings(settings: {
+  reducedEffects: boolean;
+  screenShake: FeelSettings['screenShake'];
+}): FeelSettings {
+  return {
+    reducedEffects: settings.reducedEffects,
+    screenShake: settings.screenShake,
+  };
 }

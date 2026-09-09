@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { DisplayDepth } from '../config/display';
 
 export type ProjectileKind = 'player' | 'enemy';
 
@@ -34,6 +35,7 @@ export function fireProjectile(
   body.reset(x, y);
   sprite.setVelocity(velocityX, velocityY);
   sprite.setData('payload', payload);
+  sprite.setDepth(payload.kind === 'enemy' ? DisplayDepth.enemyBullet : DisplayDepth.playerBullet);
   return sprite;
 }
 

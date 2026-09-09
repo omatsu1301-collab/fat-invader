@@ -14,6 +14,8 @@ export const TextureKey = {
   bulletPlayer: 'tex-bullet-player',
   bulletFry: 'tex-bullet-fry',
   pickupPlaceholder: 'tex-pickup-placeholder',
+  particle: 'tex-vfx-particle',
+  fragment: 'tex-vfx-fragment',
 } as const;
 
 /**
@@ -78,6 +80,22 @@ export function ensurePlaceholderTextures(scene: Phaser.Scene): void {
     g.fillStyle(COLOR_BURN_LIME, 1);
     g.fillCircle(11, 11, 11);
     g.generateTexture(TextureKey.pickupPlaceholder, 22, 22);
+  }
+
+  if (!scene.textures.exists(TextureKey.particle)) {
+    g.clear();
+    g.fillStyle(COLOR_FOOD_AMBER, 1);
+    g.fillCircle(4, 4, 4);
+    g.generateTexture(TextureKey.particle, 8, 8);
+  }
+
+  if (!scene.textures.exists(TextureKey.fragment)) {
+    g.clear();
+    g.fillStyle(COLOR_OUTLINE, 1);
+    g.fillRect(0, 0, 8, 6);
+    g.fillStyle(COLOR_FOOD_AMBER, 1);
+    g.fillRect(1, 1, 6, 4);
+    g.generateTexture(TextureKey.fragment, 8, 6);
   }
 
   g.destroy();

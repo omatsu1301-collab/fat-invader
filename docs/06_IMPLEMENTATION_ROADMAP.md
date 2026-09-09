@@ -166,11 +166,11 @@ Vertical Sliceを「動く試作品」から「触って気持ちいい作品」
 ### Work order
 
 1. Art inventoryとasset pipelineを確定。詳細は `docs/09_ART_ASSET_INVENTORY.md`。**本stepは部分完了:** Art inventory自体、素材制作方針(強化placeholder先行)、texture/audio keyの差し替え可能設計方針は確定済み。asset-manifest.ts、素材license記録、BGM/SE音源供給方法は未確定で、step 7(Sound mixとvoice limit)着手直前までに確定すればよい。この未確定分がstep 2〜6の着手を妨げることはない。
-2. 単発shot / hit / killを完成。
-3. 連続killでeffect capを検証。
-4. Player hit / FAT OVERを完成。
-5. Combo escalation。
-6. Boss phase / death演出。
+2. 単発shot / hit / killを完成。**本stepは実装済み (Human Gate 2: 通常撃破 PASS、feel非変更):** flash / hit stop / explosion / fragment / score popup。最終ラスター素材なし。
+3. 連続killでeffect capを検証。**本stepは実装済み (Human Gate 2: 連続撃破 PASS、feel非変更):** particle 320 / fragment 48 / popup 20。cap到達時は装飾のみ破棄し、gameplay弾は維持。gameplayRandomとvfxRandomは分離済み（Codex監査、VFX消費数が敵発射を変えない）。
+4. Player hit / FAT OVERを完成。**本stepは実装・Human採用済み (Human Gate 2 follow-up: 表示時間 約1.6s→約2.6s):** 被弾vignette / shake / FAT OVER squash pose + caption。`fatOverHoldMs: 2600`。約2.6秒の余韻をHuman PASS（2026-09-09）。BGM/SEなし。
+5. Combo escalation。**本stepは実装済み (Human Gate 2待ちのまま、通常撃破feelは採用):** tier callout ≤380ms、HUD上部。通常Waveの最大comboは8のため、25/50の確認はE2E debugまたは試遊手順の補助を使う。
+6. Boss phase / death演出。**本stepは実装済み (Human Gate 2: Boss death 正式採用「めっちゃいいね」、3-beat非変更):** 致死弾直後のwhite flashとhit stop、3〜4回の内部爆発、最終大爆発でsprite消去後にSTAGE CLEAR。通常敵の単体/連続撃破feelはHuman採用のため非変更。Slow-moは戦闘結果を変えないよう未適用。
 7. Sound mixとvoice limit。
 8. Accessibility effects。
 9. Mobile readability。
@@ -213,6 +213,22 @@ Vertical Sliceを「動く試作品」から「触って気持ちいい作品」
 - 演出がダサい、弱い、過剰のどこにあるか。
 
 Gate 2の感想はAIが「維持・強化・削減」に分類し、最小調整案へ変換する。
+
+### Human Gate 2 result (2026-09-08)
+
+**Status: CONDITIONAL PASS / 修正付き採用。正式PASSではない。**
+
+| Item | Human | Follow-up |
+| --- | --- | --- |
+| AC-230 単体撃破 | PASS「ちょうどいい」 | 通常敵 particle / hit stop / kill shake は非変更 |
+| AC-231 連続撃破 | PASS「ちょうどいい」 | 同上 |
+| Boss HP半分の変化 | PASS | 非変更 |
+| Boss death | PASS「めっちゃいいね」（2026-09-09） | 3-beat（impact → internal ×3–4 → finale）は非変更 |
+| FAT OVER pose | PASS「約2.6秒を採用」（2026-09-09） | `fatOverHoldMs: 2600`、squash pose +「FAT OVER / 満腹につき、いったん帰還。」を非変更 |
+| AC-232 派手さ vs 回避 | 保留 | placeholder。最終ドット素材後に再判定 |
+| AC-233 危険かつおいしそう | 保留 | 最終敵・food bullet素材導入後に再判定 |
+
+FAT OVER 2.6秒化のHuman確認まで完了。AC-232 / AC-233は最終ドット素材後まで保留し、Work order 7・最終アート・Milestone Cは本PRのscope外とする。
 
 ## 6. Milestone C — Release Content
 

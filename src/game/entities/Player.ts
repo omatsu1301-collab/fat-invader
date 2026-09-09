@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { InputIntent } from '../systems/InputSystem';
 import { GameBalance } from '../config/balance';
+import { DisplayDepth } from '../config/display';
 import { TextureKey } from './textures';
 import type { AppearanceTier } from '../domain/calorie';
 import { computePlayerMovementStep } from '../domain/player-movement';
@@ -27,6 +28,7 @@ export function createPlayer(
   maxX: number,
 ): PlayerHandle {
   const sprite = scene.physics.add.sprite(x, y, TextureKey.player);
+  sprite.setDepth(DisplayDepth.actor);
   sprite.setCollideWorldBounds(false);
   const body = sprite.body as Phaser.Physics.Arcade.Body;
   const width = GameBalance.player.spriteSize;
@@ -85,4 +87,10 @@ export function applyHitFlash(handle: PlayerHandle, nowMs: number): void {
   handle.sprite.scene.time.delayedCall(120, () => {
     if (handle.sprite.active) handle.sprite.setAlpha(1);
   });
+}
+
+/** Display-only FAT OVER squash; hitbox size is unchanged. */
+export function applyFatOverPose(handle: PlayerHandle): void {
+  handle.sprite.setTint(0xffd7dc);
+  handle.sprite.setScale(1.18, 0.82);
 }

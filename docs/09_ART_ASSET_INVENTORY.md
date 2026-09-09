@@ -66,7 +66,7 @@ CLAUDE.md Autonomy Rules「Art directionの大幅変更」「既存の判断に�
 
 2. **BGM/SEの権利処理方針。** フリー素材ライブラリの利用、Humanによる作曲外注、AI生成音源のいずれか。FI-04 §13は権利・出典・生成条件をmanifest/creditsに記録することを求めており、方針が決まらないと `asset-manifest.ts` のlicense欄を設計できない。
 
-3. **Food bullet patternの種類数をMilestone Bで増やすか。** FI-06 §5はMilestone Bで「Player bullet / food bulletのart direction反映」とのみ規定し、パターン増加はMilestone C(10種以上)の役割。Milestone Bでは既存のFRY弾1種のart差し替えに留め、パターン追加はしない、という理解でよいか確認したい(AIの既定解釈: 留める)。
+3. **Food bullet patternの種類数をMilestone Bで増やすか。 → Human決定済み。** Milestone Bでは既存のFRY弾1種のまま。パターン追加はMilestone C。
 
 ## 4. Asset pipeline確定状況(FI-06 Work order step 1の残り)
 

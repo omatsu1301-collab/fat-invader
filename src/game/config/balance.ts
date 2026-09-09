@@ -77,7 +77,7 @@ export const GameBalance = {
       phase2HpFraction: 0.5,
       phase1: { moveSpeedPxPerSec: 70, fireIntervalMs: 1100, bulletCount: 1 },
       phase2: { moveSpeedPxPerSec: 130, fireIntervalMs: 700, bulletCount: 3 },
-      deathDurationMs: 1600,
+      deathDurationMs: 1200,
     },
   },
 
@@ -105,11 +105,77 @@ export const GameBalance = {
     enemyProjectile: 220,
     normalEnemy: 40,
     scorePopup: 20,
+    particle: 320,
+    fragment: 48,
   },
 
   playfield: {
     topInset: 48,
     bottomInset: 84,
+  },
+
+  /**
+   * Milestone B Game Feel budgets (FI-04 §8, FI-03 §12). Display-only:
+   * changing these must never alter score, damage, CALORIE, Boss HP, or
+   * stage progression. Hit-stop duration is applied as a simulation freeze
+   * for every settings profile so Reduced / Shake Off keep identical combat.
+   */
+  feel: {
+    flashDurationMs: 32,
+    flashAlpha: 0.85,
+    flashAlphaReduced: 0.3,
+    killParticles: 16,
+    killParticlesReduced: 6,
+    killFragmentsMin: 2,
+    killFragmentsMax: 5,
+    particleLifetimeMs: 250,
+    fragmentLifetimeMs: 250,
+    scorePopupLifetimeMs: 450,
+    scorePopupRisePxPerSec: 70,
+    muzzleParticles: 3,
+    muzzleParticlesReduced: 1,
+    comboCalloutDurationMs: 380,
+    playerHitVignetteMs: 90,
+    /** Human Gate 2 follow-up: squash pose + caption hold before Result. */
+    fatOverHoldMs: 2600,
+    /** Unchanged STAGE CLEAR → Result hold. */
+    clearHoldMs: 1600,
+    /**
+     * Boss death is a 3-beat display sequence (Human Gate 2). Timings are
+     * display-only; they must not change score, bossesKilled, or STAGE CLEAR
+     * bonuses. Normal-kill particle / hit-stop / shake values stay untouched.
+     */
+    bossDeath: {
+      internalCount: 4,
+      internalCountReduced: 3,
+      internalFirstMs: 220,
+      internalGapMs: 170,
+      finaleMs: 900,
+      blinkPeriodMs: 70,
+      impactFlashMs: 90,
+      internalParticles: 8,
+      internalParticlesReduced: 4,
+      internalFragments: 3,
+      finaleParticles: 18,
+      finaleParticlesReduced: 8,
+      finaleFragments: 8,
+      finaleFragmentsReduced: 4,
+    },
+    bossDeathShockwaves: 2,
+    shake: {
+      normalKillPx: 2.5,
+      normalKillMs: 70,
+      playerHitPx: 4,
+      playerHitMs: 100,
+      bossPhasePx: 3,
+      bossPhaseMs: 120,
+      bossDeathPx: 6,
+      bossDeathMs: 250,
+      bossDeathInternalPx: 3.5,
+      bossDeathInternalMs: 55,
+      reducedScale: 0.25,
+      comboTierBonusPx: 1.5,
+    },
   },
 } as const;
 

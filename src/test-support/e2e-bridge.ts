@@ -16,6 +16,7 @@ export type FatE2ERunSnapshot = {
   /** Diagnostic only: proves no previous run's bullets survive into a fresh one (AC-136). */
   activePlayerProjectiles: number;
   activeEnemyProjectiles: number;
+  activeEnemies?: number;
   endReason?: 'FAT_OVER' | 'CLEAR';
   bossPhase?: string;
   bossX?: number;
@@ -25,6 +26,19 @@ export type FatE2ERunSnapshot = {
   bossSpriteActive?: boolean;
   bossSpriteVisible?: boolean;
   bossBodyEnabled?: boolean;
+  activeParticles?: number;
+  activeFragments?: number;
+  activeScorePopups?: number;
+  shakePx?: number;
+  reducedEffects?: boolean;
+  screenShake?: 'full' | 'reduced' | 'off';
+  /** Clock-independent gameplay RNG fingerprint (fire delay + formation). */
+  enemyFireDelayMs?: number[];
+  enemyFormationOffsets?: number[];
+  bossDeathBeat?: 'impact' | 'internal' | 'finale';
+  fatOverPoseActive?: boolean;
+  runEndedCount?: number;
+  caption?: string;
 };
 
 export type FatE2ESnapshot = {
@@ -48,6 +62,13 @@ export type E2EDebugHooks = {
   debugKillAllEnemies: () => void;
   debugSetBossHp: (hp: number) => void;
   debugApplyPlayerCalorie: (amount: number) => void;
+  debugSetFeelSettings: (settings: {
+    reducedEffects?: boolean;
+    screenShake?: 'full' | 'reduced' | 'off';
+  }) => void;
+  debugSetCombo: (combo: number) => void;
+  debugSaturateVfxCaps: () => void;
+  debugPlayDisplayKill: () => void;
 };
 
 export type FatE2EBridge = {
@@ -56,6 +77,13 @@ export type FatE2EBridge = {
   debugKillAllEnemies: () => void;
   debugSetBossHp: (hp: number) => void;
   debugApplyPlayerCalorie: (amount: number) => void;
+  debugSetFeelSettings: (settings: {
+    reducedEffects?: boolean;
+    screenShake?: 'full' | 'reduced' | 'off';
+  }) => void;
+  debugSetCombo: (combo: number) => void;
+  debugSaturateVfxCaps: () => void;
+  debugPlayDisplayKill: () => void;
 };
 
 declare global {
@@ -109,5 +137,9 @@ export function installE2EBridge(game: Phaser.Game): void {
     debugKillAllEnemies: () => getHooks()?.debugKillAllEnemies(),
     debugSetBossHp: (hp: number) => getHooks()?.debugSetBossHp(hp),
     debugApplyPlayerCalorie: (amount: number) => getHooks()?.debugApplyPlayerCalorie(amount),
+    debugSetFeelSettings: (settings) => getHooks()?.debugSetFeelSettings(settings),
+    debugSetCombo: (combo) => getHooks()?.debugSetCombo(combo),
+    debugSaturateVfxCaps: () => getHooks()?.debugSaturateVfxCaps(),
+    debugPlayDisplayKill: () => getHooks()?.debugPlayDisplayKill(),
   };
 }

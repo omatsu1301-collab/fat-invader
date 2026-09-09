@@ -36,6 +36,21 @@ export class SeededRandom implements RandomSource {
 }
 
 /**
+ * One run, two independent streams. Gameplay (spawn / fire / formation)
+ * must not share state with decorative VFX, because Full / Reduced / Off
+ * consume different draw counts (FI-05 §6.4).
+ */
+export function createRunRandomSources(seed: string): {
+  gameplayRandom: SeededRandom;
+  vfxRandom: SeededRandom;
+} {
+  return {
+    gameplayRandom: new SeededRandom(seed),
+    vfxRandom: new SeededRandom(`${seed}:vfx`),
+  };
+}
+
+/**
  * Generates a fresh, non-adversarial seed for production runs (FI-05 section
  * 6.4: "起動時のsecure-enough random stringでよい"). Uses crypto rather than
  * `Math.random()` so the ban on that API stays absolute across the codebase.
