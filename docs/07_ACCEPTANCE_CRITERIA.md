@@ -147,7 +147,7 @@
 | AC-232 | 派手さが回避の妨げにならないと採用 | H | MUST |
 | AC-233 | 食べ物が「危険かつおいしそう」と採用 | H | MUST |
 
-Human Gate 2 (2026-09-08, follow-up 2026-09-09): **CONDITIONAL PASS / 修正付き採用（正式PASSではない）。** AC-230 / AC-231 は PASS「ちょうどいい」（通常敵kill feelは非変更）。Boss death は Human PASS「めっちゃいいね」（3-beat非変更）。FAT OVER は Human要望により pose+caption を約1.6秒から約2.6秒へ延長（`fatOverHoldMs: 2600`）。AC-232 / AC-233 はplaceholderのため保留し、最終ドット素材導入後に再判定する。
+Human Gate 2 (2026-09-08, follow-up 2026-09-09): **CONDITIONAL PASS / 修正付き採用（正式PASSではない）。** AC-230 / AC-231 は PASS「ちょうどいい」（通常敵kill feelは非変更）。Boss death は Human PASS「めっちゃいいね」（3-beat非変更）。FAT OVER は pose+caption を約1.6秒から約2.6秒へ延長後、Human PASS「約2.6秒を採用」（`fatOverHoldMs: 2600`、非変更）。AC-232 / AC-233 はplaceholderのため保留し、最終ドット素材導入後に再判定する。
 
 ## 7. Milestone C Acceptance — Content
 
