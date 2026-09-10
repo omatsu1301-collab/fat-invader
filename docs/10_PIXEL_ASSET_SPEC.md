@@ -1,8 +1,8 @@
 # FATインベーダー — Pixel Asset Specification
 
 **Document ID:** FI-10
-**Version:** 1.1 (Codex review follow-up)
-**Status:** Style North Star 設計草案（画像未生成・Human Gate待ち）
+**Version:** 1.2 (Style North Star document Human-approved)
+**Status:** Style North Star 文書 Human APPROVED（画像未生成・5 still Human Gate待ち）
 **Depends on:** FI-01, FI-02, FI-04, FI-05, FI-07, FI-08, FI-09
 **Last updated:** 2026-09-10
 **Base main SHA:** `7e054d91e4ec2d7639df49dd974e784cd8de90bb`
@@ -16,7 +16,7 @@
 - 画像生成、sprite / PNG / atlas の追加
 - ゲームコード、GameBalance、演出タイミング、hitbox の変更
 - PR #4 で確定した Game Feel の変更（通常撃破、Boss 3-beat、FAT OVER 約2.6秒）
-- Style North Star 承認前の素材量産
+- 5 still Human Gate 承認前の follow-on素材・animation・Stage 2/3素材の量産
 - merge / Deploy
 
 読み取り対象の実ファイル名（依頼文の別名との対応）:
@@ -106,7 +106,7 @@ Wave: `waves.stage1Wave1` のみ。Boss 警告 900ms → intro 1000ms → active
 | Player idle / move / shoot | 静止 1 枚 + 移動は位置のみ | North Star 承認後。初回実装は idle 1 フレームで可 |
 | Player hit | alpha 0.5 を 120ms | shader/tint 継続可（FI-04） |
 | Player appearance | tint 4 種 | **4 体の専用 sprite が最終必須**（AC-305） |
-| FAT OVER | squash 2.6s + 文言 | **タイミング非変更**。専用 pose シートは任意・Human Gate |
+| FAT OVER | squash 2.6s + 文言 | **タイミング非変更**。専用 pose sheet は作らず、現行 squash を維持 |
 | Enemy idle / attack tell | 静止 1 枚 | North Star 後。初回は idle 1 フレーム可 |
 | Boss idle / phase / death | 静止 + death は squash/blink/hide + VFX | **3-beat 非変更**。death シートは任意 |
 | Kill / muzzle / shockwave | Graphics + pooled Image | 本仕様の North Star 対象外 |
@@ -532,8 +532,8 @@ Credits 行の生成元はこの manifest とする（AC-440）。
 ## 10. Work order (generate → process → implement → Human Gate)
 
 ```text
-0. 本仕様の Human 承認（Style North Star 文書 Gate）
-     未承認なら画像を作らない
+0. 本仕様の Human 承認（Style North Star 文書 Gate）— **PASS（2026-09-10）**
+     承認範囲は文書・制作規則。5 still の絵柄は未承認
 1. North Star 5 still だけを ChatGPT 画像生成で作成し assets-src/raw/ に保存（上書きしない）
 2. raw → canonical master: crop / pad / nearest で runtime × 4 へ変換（assets-src/masters/）
 3. master → processed runtime: palette index / nearest 4×→1× / defringe / pivot 統一
@@ -632,12 +632,16 @@ Gate パッケージは FI-04 §15 に寄せ、最低でも Mobile 通常戦闘�
 | `asset-manifest.ts` | 未存在 | 新規追加 | domain の score/calorie 式 |
 | BootScene | 空の start Title | preload 追加 | Production への E2E bridge |
 
-## 14. Open questions for Human
+## 14. Human Gate status
 
-文書 Gate / still Gate で明示してほしい項目は次の 2 点のみ。§11 の技術決定はここへ戻さない。
+§11 の技術決定は再オープンしない。
 
-1. **修正版 FI-10 を Style North Star 文書の正として承認するか。** 承認前は画像を生成しない。
-2. **生成後の 5 still が絵柄・可読性・食欲・風刺境界を満たすか。**（Player Light / FRY SCOUT / FRY bullet / Player bullet / KING BURGER）
+| Gate | 状態 | 範囲 |
+| --- | --- | --- |
+| FI-10 文書 Gate | **PASS（2026-09-10）** | Style North Star の制作規則・pipeline・技術決定を正として採用 |
+| 5 still Visual Gate | **PENDING** | 生成後に絵柄・可読性・食欲・風刺境界を判断 |
+
+次に Human が判断するのは、生成後の 5 still（Player Light / FRY SCOUT / FRY bullet / Player bullet / KING BURGER）のみ。
 
 BGM/SE 権利（FI-09 §3-2）は本仕様の対象外。音源方針は Sound mix 工程で別途。
 
@@ -652,4 +656,13 @@ BGM/SE 権利（FI-09 §3-2）は本仕様の対象外。音源方針は Sound m
 | Minor | `bullet.fry.size = 12` と texture 14 の不一致 | 記録のみ。hitbox は 14 で確定 |
 | Minor | AC-117 の専用 integration test が薄い | コード非変更のため本 PR では触らない |
 
-Critical / Major の未処理なし。Human Gate は §14 の 2 項目のみ。
+Critical / Major の未処理なし。FI-10 文書 Gate は Human PASS。残る Human Gate は生成後の 5 still Visual Gate のみ。
+
+
+## 16. Human adoption record
+
+- **Date:** 2026-09-10
+- **Decision:** PASS「採用」
+- **Approved:** FI-10をStyle North Star文書の正とする。4段階pipeline、silhouette規則、技術決定、manifest schema、AC-232 / AC-233証拠計画。
+- **Not yet approved:** 画像そのもの、5 stillの絵柄・可読性・食欲・風刺境界、ゲーム内統合、AC-232 / AC-233。
+- **Next:** North Star 5 stillだけを生成し、Visual Gateへ提示する。量産・実装はまだ行わない。
