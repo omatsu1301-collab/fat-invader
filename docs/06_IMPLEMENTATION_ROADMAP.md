@@ -165,7 +165,7 @@ Vertical Sliceを「動く試作品」から「触って気持ちいい作品」
 
 ### Work order
 
-1. Art inventoryとasset pipelineを確定。詳細は `docs/09_ART_ASSET_INVENTORY.md`。**本stepは部分完了:** Art inventory自体、素材制作方針(強化placeholder先行)、texture/audio keyの差し替え可能設計方針は確定済み。asset-manifest.ts、素材license記録、BGM/SE音源供給方法は未確定で、step 7(Sound mixとvoice limit)着手直前までに確定すればよい。この未確定分がstep 2〜6の着手を妨げることはない。
+1. Art inventoryとasset pipelineを確定。詳細は `docs/09_ART_ASSET_INVENTORY.md`。**本stepは部分完了:** Art inventory自体、素材制作方針(強化placeholder先行)、texture/audio keyの差し替え可能設計方針は確定済み。ラスター向け Pixel Asset Spec / Style North Star / manifest schema は `docs/10_PIXEL_ASSET_SPEC.md`（FI-10）としてHuman PASS「採用」（2026-09-10）。画像未生成・5 still Visual Gate待ち。asset-manifest.ts 実体、素材license記入、BGM/SE音源供給方法は未確定で、step 7(Sound mixとvoice limit)着手直前までに確定すればよい。この未確定分がstep 2〜6の着手を妨げることはない。5 still Visual Gate承認前にfollow-on素材・animation・Stage 2/3素材の量産へ進まない。
 2. 単発shot / hit / killを完成。**本stepは実装済み (Human Gate 2: 通常撃破 PASS、feel非変更):** flash / hit stop / explosion / fragment / score popup。最終ラスター素材なし。
 3. 連続killでeffect capを検証。**本stepは実装済み (Human Gate 2: 連続撃破 PASS、feel非変更):** particle 320 / fragment 48 / popup 20。cap到達時は装飾のみ破棄し、gameplay弾は維持。gameplayRandomとvfxRandomは分離済み（Codex監査、VFX消費数が敵発射を変えない）。
 4. Player hit / FAT OVERを完成。**本stepは実装・Human採用済み (Human Gate 2 follow-up: 表示時間 約1.6s→約2.6s):** 被弾vignette / shake / FAT OVER squash pose + caption。`fatOverHoldMs: 2600`。約2.6秒の余韻をHuman PASS（2026-09-09）。BGM/SEなし。

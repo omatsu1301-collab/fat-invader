@@ -54,6 +54,8 @@ Reactはv0.1では採用しない。Title、HUD、Pause、ResultをPhaser Scene 
     06_IMPLEMENTATION_ROADMAP.md
     07_ACCEPTANCE_CRITERIA.md
     08_TONE_AND_SATIRE.md
+    09_ART_ASSET_INVENTORY.md
+    10_PIXEL_ASSET_SPEC.md
   public/assets/
   src/
     main.ts
