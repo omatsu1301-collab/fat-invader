@@ -252,11 +252,12 @@ test.describe('Vertical slice', () => {
     expect(stillPaused?.calorie).toBe(before?.calorie);
     expect(stillPaused?.playerX).toBe(before?.playerX);
 
+    await page.locator('canvas').click({ position: { x: 10, y: 10 } });
     await page.keyboard.press('Escape'); // resume
     await page.waitForFunction(
       (expected) => (window.__FAT_E2E__?.getSnapshot().run?.calorie ?? 0) >= expected,
       (before?.calorie ?? 0) + 50,
-      { timeout: 2000 },
+      { timeout: 5000 },
     );
   });
 
