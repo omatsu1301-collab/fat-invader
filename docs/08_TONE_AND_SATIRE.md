@@ -122,16 +122,14 @@ D〜Aまでは広告的な褒め言葉。Sで `BODY FAT 3% — WARNING`、SSで�
 
 実在商標や商品固有名を使わない。
 
-### Player arsenal
+### Preferred arsenal names (player-facing)
 
-フィットネス語 + 武器語。
-
-- METABOLIC SHOT
+- くしゃ紙弾（三日坊主号の主砲弾）
 - PROTEIN BEAM
 - CARDIO DRIVE
 - FAT BURN BOMB
 
-現実の効果を正確に示す必要はないが、誤認を招く具体的な健康数値は付けない。
+Internal/event ids may retain legacy `metabolicShot` for compatibility; that string is not player-facing copy.
 
 ## 8. Copy Baseline
 
