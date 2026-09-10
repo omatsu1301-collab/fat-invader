@@ -1,19 +1,19 @@
 # FATインベーダー — Art & Audio Asset Inventory
 
 **Document ID:** FI-09
-**Version:** 1.2 (Pixel Spec 草案への相互参照)
+**Version:** 1.3 (FI-10 document Human-approved)
 **Depends on:** FI-04 (Art Direction), FI-06 §5 (Milestone B), FI-10 (Pixel Asset Spec draft)
-**Status:** 下表のとおり一部確定・一部未確定 / FI-10 草案参照あり
+**Status:** 下表のとおり一部確定・一部未確定 / FI-10文書 Human承認済み
 
 | 項目 | 状態 |
 | --- | --- |
 | Art inventory（本ドキュメント） | **完了** |
 | 素材制作方針（強化placeholder先行） | **確定**（§3-1） |
 | texture/audio keyを後から差し替え可能にする設計方針 | **確定**（§3-1） |
-| Pixel Asset Spec / Style North Star（ラスター向け） | **草案** → [`docs/10_PIXEL_ASSET_SPEC.md`](./10_PIXEL_ASSET_SPEC.md)（FI-10）。画像未生成・Human Gate待ち |
+| Pixel Asset Spec / Style North Star（ラスター向け） | **文書 Human PASS「採用」（2026-09-10）** → [`docs/10_PIXEL_ASSET_SPEC.md`](./10_PIXEL_ASSET_SPEC.md)（FI-10）。画像未生成・5 still Visual Gate待ち |
 | asset-manifest.ts 実体、素材license記入、BGM/SE音源供給方法 | **未確定**（§3-2, §4）。manifest **schema** は FI-10 §9 で草案化 |
 
-FI-06 §5 Work order step 1「Art inventoryとasset pipelineを確定」のうち、Art inventoryと素材制作方針・key設計方針は確定した。ラスター向けの Pixel Asset Spec / Style North Star / manifest schema は FI-10 として草案化した（Human 承認前・画像未生成）。asset-manifest.ts 実体、license 記入、BGM/SE音源供給は未確定のまま。**step 1は完全には完了していない。** ただし音源まわりの未確定はWork order step 7（Sound mixとvoice limit）の直前までに確定すればよく、Milestone B Work order step 2〜6（単発kill演出からBoss phase/death演出まで）の着手を妨げない。Style North Star 承認前に素材量産へ進まない。
+FI-06 §5 Work order step 1「Art inventoryとasset pipelineを確定」のうち、Art inventoryと素材制作方針・key設計方針は確定した。ラスター向けの Pixel Asset Spec / Style North Star / manifest schema は FI-10 として文書Human承認済み（2026-09-10、画像未生成・5 still Visual Gate待ち）。asset-manifest.ts 実体、license 記入、BGM/SE音源供給は未確定のまま。**step 1は完全には完了していない。** ただし音源まわりの未確定はWork order step 7（Sound mixとvoice limit）の直前までに確定すればよく、Milestone B Work order step 2〜6（単発kill演出からBoss phase/death演出まで）の着手を妨げない。5 still Visual Gate承認前にfollow-on素材・animation・Stage 2/3素材の量産へ進まない。
 
 FI-04 §12「Milestone B開始時にArt asset inventoryを作成し、欠品を明示する」を満たすための記録。Milestone Bの実装(Work order step 2以降)に着手する前に、Human(Creative Director)が判断すべき論点をまとめる。
 
@@ -72,10 +72,10 @@ CLAUDE.md Autonomy Rules「Art directionの大幅変更」「既存の判断に�
 ## 4. Asset pipeline確定状況(FI-06 Work order step 1の残り)
 
 - **確定済み:** 素材制作方針(強化placeholder先行、§3-1)、texture/audio keyを最終素材へ差し替え可能に保つ設計方針(§3-1)。
-- **草案 (FI-10):** Pixel Asset Spec、Style North Star 5 still、raw / canonical master / processed / public runtime 配置、命名、manifest schema、AC-232/233 証拠計画。Human 承認と画像生成は未着手。詳細は [`docs/10_PIXEL_ASSET_SPEC.md`](./10_PIXEL_ASSET_SPEC.md)。
+- **文書承認済み (FI-10):** Pixel Asset Spec、Style North Star 5 still、raw / canonical master / processed / public runtime 配置、命名、manifest schema、AC-232/233 証拠計画。Human PASS「採用」（2026-09-10）。画像生成と5 still Visual Gateは未着手。詳細は [`docs/10_PIXEL_ASSET_SPEC.md`](./10_PIXEL_ASSET_SPEC.md)。
 - **未確定:** `asset-manifest.ts` の**実体**（TypeScript ファイル未作成）、素材licenseの実記入、BGM/SE音源供給方法(§3-2)。FI-05のディレクトリ構成は `src/game/content/asset-manifest.ts` を将来配置として明記している。schema 草案は FI-10 §9。
-- **保留期限:** ラスター接続は Style North Star Human Gate 後。BGM/SE は Work order step 7 着手直前までに確定すればよい。それまでWork order step 1は「asset pipeline確定」の部分が未完了のまま残る。
+- **保留期限:** ラスター接続は 5 still Visual Gate 後。BGM/SE は Work order step 7 着手直前までに確定すればよい。それまでWork order step 1は「asset pipeline確定」の部分が未完了のまま残る。
 
 ## 5. Not blocking Milestone B start
 
-素材制作方針(§3-1)はHuman decision済み(強化placeholder先行)。ラスター向け Spec は FI-10 草案。残るBGM/SE権利処理方針(§3-2)とfood bullet pattern数(§3-3)、および asset-manifest.ts本体(§4)は未確定だが、いずれもWork order step 7以降(Sound mix、Content確定)または Style North Star Gate に関わる論点であり、Work order step 2〜6(単発kill演出からBoss phase/death演出まで)の着手を妨げない。Style North Star 承認前に素材量産へ進まない。
+素材制作方針(§3-1)はHuman decision済み(強化placeholder先行)。ラスター向け Spec は FI-10 文書Human承認済み（2026-09-10）。残るBGM/SE権利処理方針(§3-2)とfood bullet pattern数(§3-3)、および asset-manifest.ts本体(§4)は未確定だが、いずれもWork order step 7以降(Sound mix、Content確定)または Style North Star Gate に関わる論点であり、Work order step 2〜6(単発kill演出からBoss phase/death演出まで)の着手を妨げない。5 still Visual Gate承認前にfollow-on素材・animation・Stage 2/3素材の量産へ進まない。
