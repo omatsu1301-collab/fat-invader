@@ -19,10 +19,8 @@ export const TextureKey = {
 } as const;
 
 /**
- * FI-04 section 12 Placeholder Strategy: Milestone A ships primitive shapes
- * under the same ids final sprites will later replace. Generated once per
- * Phaser.Game instance (the texture manager persists across scene restarts),
- * guarded by `exists()` so repeated GameScene creation never duplicates work.
+ * Placeholder fallback for keys not yet loaded from public assets.
+ * North Star keys are preloaded in BootScene; `textures.exists()` skips regeneration.
  */
 export function ensurePlaceholderTextures(scene: Phaser.Scene): void {
   const g = scene.add.graphics();

@@ -56,6 +56,7 @@ export const GameBalance = {
     playerShot: {
       speedPxPerSec: 680,
       damage: 1,
+      /** Collision width. Visual canvas is 12×16; body applied as 6×16 @ (3,0). */
       size: 6,
     },
     fry: {

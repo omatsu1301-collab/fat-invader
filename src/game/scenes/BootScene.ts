@@ -1,12 +1,20 @@
 import Phaser from 'phaser';
+import { NORTH_STAR_ASSETS, runtimeLoadPath } from '../content/asset-manifest';
 
 /**
- * Phase 0 has no real assets to preload yet; Boot exists as the fixed
- * entry point future asset/save loading (FI-03 section 2.1) will attach to.
+ * Boot preloads Human-approved North Star PNGs under existing TextureKey values.
+ * Paths always use `import.meta.env.BASE_URL` so GitHub Pages `/fat-invader/` works.
  */
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('BootScene');
+  }
+
+  preload(): void {
+    const base = import.meta.env.BASE_URL;
+    for (const asset of NORTH_STAR_ASSETS) {
+      this.load.image(asset.textureKey, `${base}${runtimeLoadPath(asset)}`);
+    }
   }
 
   create(): void {

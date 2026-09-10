@@ -13,12 +13,30 @@ export type PlayerHandle = {
   nextFireAtMs: number;
 };
 
-const TIER_TINT: Record<AppearanceTier, number> = {
-  light: 0x53f6ff,
+const TIER_TINT: Record<Exclude<AppearanceTier, 'light'>, number> = {
   rounded: 0x8ff2ff,
   heavy: 0xbfe9ff,
   overflowing: 0xffd7dc,
 };
+
+/**
+ * Pilot one-still Player art is multicolor. `light` must not cyan-wash authored pixels.
+ * Higher tiers keep temporary tint signaling until dedicated tier sprites exist.
+ * Returns `null` when the sprite should clearTint().
+ */
+export function appearanceTintForTier(tier: AppearanceTier): number | null {
+  if (tier === 'light') return null;
+  return TIER_TINT[tier];
+}
+
+export function setAppearanceTint(handle: PlayerHandle, tier: AppearanceTier): void {
+  const tint = appearanceTintForTier(tier);
+  if (tint === null) {
+    handle.sprite.clearTint();
+    return;
+  }
+  handle.sprite.setTint(tint);
+}
 
 export function createPlayer(
   scene: Phaser.Scene,
@@ -38,6 +56,7 @@ export function createPlayer(
   body.setOffset((width - hitboxW) / 2, (width - hitboxH) / 2);
   sprite.setData('minX', minX);
   sprite.setData('maxX', maxX);
+  sprite.clearTint();
 
   return { sprite, velocityXPxPerSec: 0, invulnerableUntilMs: 0, nextFireAtMs: 0 };
 }
@@ -71,10 +90,6 @@ export function updatePlayerMovement(
   );
   sprite.x = next.x;
   handle.velocityXPxPerSec = next.velocityXPxPerSec;
-}
-
-export function setAppearanceTint(handle: PlayerHandle, tier: AppearanceTier): void {
-  handle.sprite.setTint(TIER_TINT[tier]);
 }
 
 export function isInvulnerable(handle: PlayerHandle, nowMs: number): boolean {

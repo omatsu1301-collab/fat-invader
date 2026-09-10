@@ -10,6 +10,21 @@ export type ProjectilePayload = {
   bulletId: string;
 };
 
+/** Explicit Arcade body by bullet id. Visual canvas may differ (AC-117 / FI-10). */
+export function projectileBodyForBulletId(bulletId: string): {
+  width: number;
+  height: number;
+  offsetX: number;
+  offsetY: number;
+} {
+  if (bulletId === 'playerShot') {
+    // Visual canvas 12×16; collision remains 6×16 centered horizontally.
+    return { width: 6, height: 16, offsetX: 3, offsetY: 0 };
+  }
+  // fry and any other enemy food bullet in this pilot
+  return { width: 14, height: 14, offsetX: 0, offsetY: 0 };
+}
+
 /**
  * Fires (or reuses, via the group's own pooling) one projectile. Arcade
  * Groups created with a `maxSize` silently no-op past capacity, which is the
@@ -33,6 +48,9 @@ export function fireProjectile(
   const body = sprite.body as Phaser.Physics.Arcade.Body;
   body.enable = true;
   body.reset(x, y);
+  const box = projectileBodyForBulletId(payload.bulletId);
+  body.setSize(box.width, box.height);
+  body.setOffset(box.offsetX, box.offsetY);
   sprite.setVelocity(velocityX, velocityY);
   sprite.setData('payload', payload);
   sprite.setDepth(payload.kind === 'enemy' ? DisplayDepth.enemyBullet : DisplayDepth.playerBullet);
