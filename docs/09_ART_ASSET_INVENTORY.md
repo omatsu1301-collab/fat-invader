@@ -13,7 +13,9 @@
 | Pixel Asset Spec / Style North Star（ラスター向け） | **5 still concepts APPROVED（2026-09-10）**。processed-runtime Human Gate 待ち → [`docs/10_PIXEL_ASSET_SPEC.md`](./10_PIXEL_ASSET_SPEC.md) |
 | asset-manifest.ts 実体 | **追加済み**（North Star 5）。BGM/SE 音源供給は未確定 |
 
-FI-06 §5 Work order step 1 は前進: North Star 5 still concepts Human APPROVED（2026-09-10）。決定論的 pipeline と `asset-manifest.ts` を統合 Draft に含める。AC-232/233 と processed-runtime visual は Human Gate 待ち。BGM/SE は未確定。follow-on / animation 量産はしない。
+FI-06 §5 Work order step 1 は前進: North Star 5 still concepts Human APPROVED（2026-09-10）。PR #6 merge 済み。
+
+**Human 2026-09-11:** 三日坊主号は runtime Player として視認性不足のため **deferred**（asset削除禁止 / future skin）。Full Graybox は `tex-player` = 飛ぶ会社員 placeholder。追加 AI 画像生成停止。BGM/SE は minimal adapter のみ（final mix 禁止）。AC-232/233 は最終デザイン後に再判定。
 
 FI-04 §12「Milestone B開始時にArt asset inventoryを作成し、欠品を明示する」を満たすための記録。Milestone Bの実装(Work order step 2以降)に着手する前に、Human(Creative Director)が判断すべき論点をまとめる。
 
@@ -23,7 +25,7 @@ FI-04 §12「Milestone B開始時にArt asset inventoryを作成し、欠品を�
 
 | Texture key | 現状 | Canvas size | FI-04が要求する最終形 |
 | --- | --- | --- | --- |
-| `tex-player` | 角丸cyan矩形＋目2点 | 40×40 | Player、48×48 canvas、4 appearance tiers、idle/move/shoot/hit/FAT OVERアニメーション一式（§6.2, §6.3） |
+| `tex-player` | **Graybox「飛ぶ会社員」**（頭・胴・ネクタイ silhouette）。cyan astronaut 禁止。三日坊主号は runtime 不使用 | 40×40 | Player最終art（future）。hitbox 24×28 @ (8,6) 固定 |
 | `tex-enemy-fry-scout` | 角丸amber矩形 | 28×28 | FRY SCOUT最終art、40×40 canvas、idle 4f + attack tell 2〜4f（§5.3, §6.2, §6.3） |
 | `tex-boss-king-burger-mini` | 角丸pink矩形＋amber帯 | 96×72 | KING BURGER最終art、160×128以内 canvas、idle/attack tell/phase change/death一式（§5.3, §6.2, §6.3） |
 | `tex-bullet-player` | cyan細長矩形 | 6×16 | Player bullet最終art（cyan core + white tip、§4.2） |

@@ -9,13 +9,16 @@
 
 20個の細切れ機能を人間が逐次指示する方式ではなく、AIがMilestoneの成果責任を持つ。各MilestoneでAIは、調査、設計差分、実装、テスト、自己監査、修正、文書更新、commit、PR準備まで自律的に進める。
 
-人間は3回のHuman Gateだけを主に担当する。
+人間は大きな遊べるマイルストーン単位のHuman Gateだけを主に担当する（Fast Flow v4）。
 
 | Gate | Build | Human question |
 | --- | --- | --- |
-| Gate 1 | Vertical Slice | 動かして、避けて、倒して、最後まで遊べるか |
-| Gate 2 | Game Feel | 撃破と回避が気持ちいいか。画面が読めるか |
-| Gate 3 | Release Candidate | 人にURLを渡せるか。風刺の温度は適切か |
+| Gate 1 | Vertical Slice | 動かして、避けて、倒して、最後まで遊べるか — **PASS** |
+| Gate 2 | Game Feel | 撃破と回避が気持ちいいか。画面が読めるか — **CONDITIONAL PASS**（採用feel固定） |
+| Art Pilot | North Star runtime (PR #6) | 代表5素材の可読性・食欲・弾識別 — **merge済み**；Playerは後日grayboxへ変更 |
+| **Full Graybox** | 3 Stage / 3 Boss placeholder | Core loop・難度・欲しい/不要機能・再プレイ意欲 |
+| Design Integration | 最終デザイン一括統合 | 統一感 |
+| Gate 3 / Release | Production candidate | 人にURLを渡せるか。風刺の温度は適切か |
 
 ## 2. Global Working Rules
 
@@ -228,27 +231,38 @@ Gate 2の感想はAIが「維持・強化・削減」に分類し、最小調整
 | AC-232 派手さ vs 回避 | 保留 | placeholder。最終ドット素材後に再判定 |
 | AC-233 危険かつおいしそう | 保留 | 最終敵・food bullet素材導入後に再判定 |
 
-FAT OVER 2.6秒化のHuman確認まで完了。AC-232 / AC-233は最終ドット素材後まで保留し、Work order 7・最終アート・Milestone Cは本PRのscope外とする。
+FAT OVER 2.6秒化のHuman確認まで完了。AC-232 / AC-233は最終ドット素材後まで保留し、Work order 7・最終アートは旧Art-first順ではscope外だった。
 
-## 6. Milestone C — Release Content
+### Fast Flow override (2026-09-11)
+
+Human方針により進行順を上書き:
+
+1. PR #6 North Star 統合 → merge / Deploy 完了。
+2. 追加画像生成停止。
+3. **Full Graybox**（placeholder中心の3 Stage / 3 Boss）を一つの Draft PR で一気通貫実装。
+4. Runtime Player は三日坊主号を使わず「飛ぶ会社員」graybox silhouette（hitbox不変）。三日坊主号は reference / future skin。
+5. Full Graybox Human Gate の後に機能修正 batch → 最終デザイン一括。
+
+## 6. Milestone C — Full Graybox / Release Content
 
 ### Objective
 
-確立した品質基準を崩さず、3〜5分の完成RunへContentを拡張する。
+最終アートがなくても、確立した品質基準で3〜5分の完成Run構造を placeholder 中心に通し遊べるようにする（Fast Flow）。
 
-### Required scope
+### Required scope (Full Graybox)
 
 - 3 stages。
 - 通常敵5種以上。
 - Food bullet pattern 10以上。
-- 3 bosses、各3 combat phases。
+- 3 bosses、各 intro→phase1→phase2→rage→dead。
 - Power-up 5種。
-- 4 realtime appearances。
-- 6 result appearances / ranks。
-- Stage-specific backgrounds / BGM variation。
-- 完全なscore / evaluation。
-- Difficulty curveとtarget score調整。
+- 4 realtime appearances（placeholder可）。
+- 6 result appearances / ranks（placeholder可）。
+- Settings + minimal audio adapter（final BGM/SE mix 禁止）。
+- 完全なscore / evaluation / persistence。
+- Difficulty curveとtarget score調整（GameBalance）。
 - Credits / license record。
+- Stage-specific final backgrounds / final BGM variation は **deferred**。
 
 ### Content production rule
 
