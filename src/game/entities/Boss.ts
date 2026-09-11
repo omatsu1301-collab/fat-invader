@@ -17,7 +17,16 @@ export type BossHandle = {
   introStartedAtMs: number;
   nextFireAtMs: number;
   directionSign: 1 | -1;
+  /** Life-instance id for delayed telegraph ownership. */
+  fightGeneration: number;
 };
+
+let nextBossFightGeneration = 1;
+
+/** Test/reset helper — production never needs to call this. */
+export function resetBossFightGenerationCounter(next = 1): void {
+  nextBossFightGeneration = next;
+}
 
 const TEXTURE_BY_BOSS: Record<BossId, string> = {
   kingBurgerMini: TextureKey.bossKingBurgerMini,
@@ -40,6 +49,9 @@ export function spawnBoss(
   body.setOffset(def.spriteWidth * 0.075, def.spriteHeight * 0.075);
   body.setImmovable(true);
 
+  const fightGeneration = nextBossFightGeneration;
+  nextBossFightGeneration += 1;
+
   return {
     sprite,
     bossId,
@@ -47,6 +59,7 @@ export function spawnBoss(
     introStartedAtMs: nowMs,
     nextFireAtMs: 0,
     directionSign: 1,
+    fightGeneration,
   };
 }
 

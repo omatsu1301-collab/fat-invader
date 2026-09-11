@@ -3,20 +3,22 @@ import { bullets } from '../content/bullets';
 
 /**
  * Pure soda-laser corridor plan shared by PatternSystem, tell graphics, and
- * fairness tests. Lane X is fixed at telegraph start; reach covers the player
- * movement band down to beamReachY (playfield bottom).
+ * fairness tests. One attack = one continuous hazard from source to player band.
+ * Lane X is fixed at telegraph start.
  */
 export type SodaLaserCorridorPlan = {
   laneX: number;
   sourceY: number;
-  firstSegmentY: number;
+  topY: number;
   endY: number;
+  centerY: number;
+  heightPx: number;
   widthPx: number;
   halfWidthPx: number;
-  segmentSpacingPx: number;
-  segmentYs: number[];
   telegraphMs: number;
   beamDurationMs: number;
+  /** Always 1 — laser must never consume N normal projectile slots. */
+  hazardSlots: 1;
 };
 
 /** Playfield / player-band end Y — beam must reach at least into the player band. */
@@ -32,37 +34,73 @@ export function sodaLaserPlayerBandY(): number {
 export function planSodaLaserCorridor(sourceX: number, sourceY: number): SodaLaserCorridorPlan {
   const def = bullets.sodaLaser;
   const halfWidthPx = def.beamHalfWidthPx ?? 10;
-  const segmentSpacingPx = def.beamSegmentSpacingPx ?? 32;
   const sourceOffsetY = def.beamSourceOffsetY ?? 16;
   const endY = sodaLaserReachY();
-  const firstSegmentY = sourceY + sourceOffsetY;
-  const segmentYs: number[] = [];
-  if (firstSegmentY <= endY) {
-    for (let y = firstSegmentY; y <= endY + 0.001; y += segmentSpacingPx) {
-      segmentYs.push(y);
-    }
-    const last = segmentYs[segmentYs.length - 1];
-    if (last === undefined || last < endY - 1) {
-      segmentYs.push(endY);
-    }
-  }
+  const topY = sourceY + sourceOffsetY;
+  const heightPx = Math.max(8, endY - topY);
+  const centerY = topY + heightPx / 2;
   return {
     laneX: sourceX,
     sourceY,
-    firstSegmentY,
+    topY,
     endY,
+    centerY,
+    heightPx,
     widthPx: halfWidthPx * 2,
     halfWidthPx,
-    segmentSpacingPx,
-    segmentYs,
     telegraphMs: def.telegraphMs ?? 600,
     beamDurationMs: def.beamDurationMs ?? 350,
+    hazardSlots: 1,
   };
 }
 
 /** True when a point at (x,y) overlaps the active beam corridor AABB. */
 export function sodaLaserHitsPoint(plan: SodaLaserCorridorPlan, x: number, y: number): boolean {
-  if (y < plan.firstSegmentY - plan.segmentSpacingPx * 0.5) return false;
-  if (y > plan.endY + plan.segmentSpacingPx * 0.5) return false;
+  if (y < plan.topY) return false;
+  if (y > plan.endY) return false;
   return Math.abs(x - plan.laneX) <= plan.halfWidthPx;
+}
+
+export type SodaLaserHazardSprite = {
+  setDisplaySize: (w: number, h: number) => void;
+  setPosition: (x: number, y: number) => void;
+  setData: (key: string, value: unknown) => void;
+  frame: { width: number; height: number };
+  body: { setSize: (w: number, h: number) => void; setOffset: (x: number, y: number) => void };
+};
+
+/**
+ * Applies continuous long-range geometry to one acquired laser sprite.
+ * Visual display size and Arcade body world size stay matched.
+ */
+export function applySodaLaserHazardGeometry(
+  sprite: SodaLaserHazardSprite,
+  plan: SodaLaserCorridorPlan,
+  expiresAtMs: number,
+): void {
+  sprite.setPosition(plan.laneX, plan.centerY);
+  sprite.setDisplaySize(plan.widthPx, plan.heightPx);
+  sprite.body.setSize(sprite.frame.width, sprite.frame.height);
+  sprite.body.setOffset(0, 0);
+  sprite.setData('expiresAtMs', expiresAtMs);
+  sprite.setData('sodaLaserLaneX', plan.laneX);
+  sprite.setData('sodaLaserEndY', plan.endY);
+  sprite.setData('sodaLaserTopY', plan.topY);
+  sprite.setData('laserHazard', true);
+}
+
+/**
+ * Acquires exactly one hazard sprite and stamps full-corridor geometry.
+ * Caller supplies acquire() from the dedicated laser pool — never the shared
+ * enemy projectile pool — so remaining normal-bullet capacity cannot shorten reach.
+ */
+export function spawnSodaLaserHazard(
+  plan: SodaLaserCorridorPlan,
+  acquire: (x: number, y: number) => SodaLaserHazardSprite | null,
+  nowMs: number,
+): { fired: number; sprite: SodaLaserHazardSprite | null } {
+  const sprite = acquire(plan.laneX, plan.centerY);
+  if (!sprite) return { fired: 0, sprite: null };
+  applySodaLaserHazardGeometry(sprite, plan, nowMs + plan.beamDurationMs);
+  return { fired: 1, sprite };
 }

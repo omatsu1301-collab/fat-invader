@@ -37,10 +37,38 @@ export function projectileBodyForBulletId(bulletId: string): {
     return { width: 18, height: 18, offsetX: 2, offsetY: 2 };
   }
   if (bulletId === 'sodaLaser') {
-    // Default segment; PatternSystem overwrites to match beam width × spacing.
+    // Default; applySodaLaserHazardGeometry stretches to full corridor height.
     return { width: 20, height: 32, offsetX: 0, offsetY: 0 };
   }
   return { width: 12, height: 12, offsetX: 0, offsetY: 0 };
+}
+
+type ProjectileDataSprite = {
+  setData: (key: string, value: unknown) => unknown;
+  setScale: (x?: number, y?: number) => unknown;
+  setAngle?: (degrees: number) => unknown;
+  setRotation?: (radians: number) => unknown;
+  setAlpha?: (value: number) => unknown;
+  clearTint?: () => unknown;
+};
+
+/**
+ * Pool reuse boundary: clear every pattern-specific mutable field before a
+ * sprite is issued as a new projectile. Callers then set fresh payload/body.
+ */
+export function resetProjectileForReuse(sprite: ProjectileDataSprite): void {
+  sprite.setScale(1);
+  sprite.setAngle?.(0);
+  sprite.setRotation?.(0);
+  sprite.setAlpha?.(1);
+  sprite.clearTint?.();
+  sprite.setData('sine', undefined);
+  sprite.setData('expiresAtMs', undefined);
+  sprite.setData('sodaLaserLaneX', undefined);
+  sprite.setData('sodaLaserEndY', undefined);
+  sprite.setData('sodaLaserTopY', undefined);
+  sprite.setData('laserHazard', undefined);
+  sprite.setData('payload', undefined);
 }
 
 /** Optional sine drift for DONUT bullets (display path follows gameplay velocity X). */
@@ -58,7 +86,7 @@ export function updateSineProjectiles(group: Phaser.Physics.Arcade.Group, nowMs:
   }
 }
 
-/** Deactivates timed hazards such as soda-laser beam segments. */
+/** Deactivates timed hazards such as soda-laser beams. */
 export function updateExpiredProjectiles(group: Phaser.Physics.Arcade.Group, nowMs: number): void {
   for (const child of group.children) {
     const sprite = child as Phaser.Physics.Arcade.Sprite;
@@ -91,11 +119,7 @@ export function fireProjectile(
   sprite.setActive(true);
   sprite.setVisible(true);
   sprite.setPosition(x, y);
-  // Pool reuse: clear soda-laser stretch / expiry so other bullets stay correct.
-  sprite.setScale(1);
-  sprite.setData('expiresAtMs', undefined);
-  sprite.setData('sodaLaserLaneX', undefined);
-  sprite.setData('sodaLaserEndY', undefined);
+  resetProjectileForReuse(sprite);
   const body = sprite.body as Phaser.Physics.Arcade.Body;
   body.enable = true;
   body.reset(x, y);

@@ -27,6 +27,10 @@ import type { ProjectilePayload } from '../entities/Projectile';
 import { WaveSystem } from '../systems/WaveSystem';
 import { activePhaseConfig, applyBossDamage, completeBossIntro } from '../systems/BossSystem';
 import { firePattern, type PatternTellKind, type PatternTellOptions } from '../systems/PatternSystem';
+import {
+  isBossTelegraphOwnerValid,
+  isEnemyTelegraphOwnerValid,
+} from '../systems/attackOwnership';
 import { FeedbackSystem } from '../systems/FeedbackSystem';
 import { DisplayDepth } from '../config/display';
 import { DEFAULT_FEEL_SETTINGS, bossDeathBeatAt, type FeelSettings } from '../domain/feel';
@@ -109,6 +113,7 @@ export class GameScene extends Phaser.Scene {
   private enemiesGroup!: Phaser.Physics.Arcade.Group;
   private playerProjectiles!: Phaser.Physics.Arcade.Group;
   private enemyProjectiles!: Phaser.Physics.Arcade.Group;
+  private sodaLaserHazards!: Phaser.Physics.Arcade.Group;
   private powerUpsGroup!: Phaser.Physics.Arcade.Group;
   private boss: BossHandle | null = null;
   private waveSystem: WaveSystem | null = null;
@@ -205,6 +210,11 @@ export class GameScene extends Phaser.Scene {
       maxSize: GameBalance.pools.enemyProjectile,
       runChildUpdate: false,
     });
+    this.sodaLaserHazards = this.physics.add.group({
+      classType: Phaser.Physics.Arcade.Sprite,
+      maxSize: GameBalance.pools.sodaLaser,
+      runChildUpdate: false,
+    });
     this.powerUpsGroup = this.physics.add.group({
       classType: Phaser.Physics.Arcade.Sprite,
       maxSize: GameBalance.pools.powerup,
@@ -220,6 +230,13 @@ export class GameScene extends Phaser.Scene {
     );
     this.physics.add.overlap(
       this.enemyProjectiles,
+      this.player.sprite,
+      (a, b) => this.onEnemyProjectileHitsPlayer(a, b),
+      undefined,
+      this,
+    );
+    this.physics.add.overlap(
+      this.sodaLaserHazards,
       this.player.sprite,
       (a, b) => this.onEnemyProjectileHitsPlayer(a, b),
       undefined,
@@ -449,6 +466,7 @@ export class GameScene extends Phaser.Scene {
 
     updateSineProjectiles(this.enemyProjectiles, nowMs);
     updateExpiredProjectiles(this.enemyProjectiles, nowMs);
+    updateExpiredProjectiles(this.sodaLaserHazards, nowMs);
 
     switch (this.phase) {
       case 'stageIntro':
@@ -590,15 +608,19 @@ export class GameScene extends Phaser.Scene {
     if (nowMs < runtime.nextFireAtMs) return;
     const def = enemyContent[runtime.enemyId];
     const patternId = runtime.firePattern;
+    const ownerGeneration = runtime.spawnGeneration;
     firePattern({
       group: this.enemyProjectiles,
+      laserGroup: this.sodaLaserHazards,
       x: sprite.x,
       y: sprite.y + 16,
       patternId,
       shotIndex: runtime.shotIndex,
       playerX: this.player.sprite.x,
       scheduleTelegraph: (delayMs, fire) => {
-        this.scheduleTelegraphFire(delayMs, fire, () => sprite.active && this.phase === 'wave');
+        this.scheduleTelegraphFire(delayMs, fire, () =>
+          isEnemyTelegraphOwnerValid(sprite, ownerGeneration, this.phase === 'wave'),
+        );
       },
       showTell: (kind, x, y, meta, options) => this.showTellGraphics(kind, x, y, meta, options),
     });
@@ -667,9 +689,7 @@ export class GameScene extends Phaser.Scene {
     this.phase = 'bossIntro';
     this.phaseStartedAtMs = nowMs;
     this.hideCaption();
-    for (const child of this.enemyProjectiles.children) {
-      deactivateProjectile(child as Phaser.Physics.Arcade.Sprite);
-    }
+    this.clearEnemyBullets();
     this.clearTells();
     this.bossFightNoHit = true;
     this.bossShotIndex = 0;
@@ -728,18 +748,18 @@ export class GameScene extends Phaser.Scene {
   private bossFire(patternId: import('../content/patterns').PatternId): void {
     if (!this.boss) return;
     const bossRef = this.boss;
+    const fightGeneration = bossRef.fightGeneration;
     firePattern({
       group: this.enemyProjectiles,
+      laserGroup: this.sodaLaserHazards,
       x: bossRef.sprite.x,
       y: bossRef.sprite.y + 30,
       patternId,
       shotIndex: this.bossShotIndex,
       playerX: this.player.sprite.x,
       scheduleTelegraph: (delayMs, fire) => {
-        this.scheduleTelegraphFire(
-          delayMs,
-          fire,
-          () => Boolean(this.boss) && this.boss!.sprite.active && this.phase === 'bossActive',
+        this.scheduleTelegraphFire(delayMs, fire, () =>
+          isBossTelegraphOwnerValid(this.boss, fightGeneration, this.phase === 'bossActive'),
         );
       },
       showTell: (kind, x, y, meta, options) => this.showTellGraphics(kind, x, y, meta, options),
@@ -795,6 +815,9 @@ export class GameScene extends Phaser.Scene {
 
   private clearEnemyBullets(): void {
     for (const child of this.enemyProjectiles.children) {
+      deactivateProjectile(child as Phaser.Physics.Arcade.Sprite);
+    }
+    for (const child of this.sodaLaserHazards.children) {
       deactivateProjectile(child as Phaser.Physics.Arcade.Sprite);
     }
   }
@@ -1165,7 +1188,7 @@ export class GameScene extends Phaser.Scene {
       playerX: this.player.sprite.x,
       shutdownListenerCount: this.events.listenerCount(Phaser.Scenes.Events.SHUTDOWN),
       activePlayerProjectiles: countActive(this.playerProjectiles),
-      activeEnemyProjectiles: countActive(this.enemyProjectiles),
+      activeEnemyProjectiles: countActive(this.enemyProjectiles) + countActive(this.sodaLaserHazards),
       activeEnemies: countActive(this.enemiesGroup),
       activePowerUps: countActive(this.powerUpsGroup),
       enemyFireDelayMs: this.collectEnemyFireDelays(),
@@ -1341,6 +1364,12 @@ export class GameScene extends Phaser.Scene {
 
   private convertEnemyBulletsToSparks(): void {
     for (const child of this.enemyProjectiles.children) {
+      const sprite = child as Phaser.Physics.Arcade.Sprite;
+      if (!sprite.active) continue;
+      this.feedback.spawnSpark(sprite.x, sprite.y);
+      deactivateProjectile(sprite);
+    }
+    for (const child of this.sodaLaserHazards.children) {
       const sprite = child as Phaser.Physics.Arcade.Sprite;
       if (!sprite.active) continue;
       this.feedback.spawnSpark(sprite.x, sprite.y);

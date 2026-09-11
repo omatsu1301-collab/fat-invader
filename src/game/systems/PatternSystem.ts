@@ -3,7 +3,11 @@ import { bullets, type BulletId } from '../content/bullets';
 import type { PatternId } from '../content/patterns';
 import { TextureKey } from '../entities/textures';
 import { fireProjectile, type ProjectilePayload } from '../entities/Projectile';
-import { planSodaLaserCorridor, type SodaLaserCorridorPlan } from './sodaLaser';
+import {
+  planSodaLaserCorridor,
+  spawnSodaLaserHazard,
+  type SodaLaserCorridorPlan,
+} from './sodaLaser';
 
 export type PatternTellKind = 'diagonal' | 'laser' | 'cast';
 
@@ -17,6 +21,11 @@ export type PatternTellOptions = {
 
 export type PatternFireContext = {
   group: Phaser.Physics.Arcade.Group;
+  /**
+   * Dedicated soda-laser hazard pool. Required for sodaLaser patterns so reach
+   * never depends on remaining enemyProjectile capacity.
+   */
+  laserGroup?: Phaser.Physics.Arcade.Group;
   x: number;
   y: number;
   patternId: PatternId;
@@ -88,34 +97,43 @@ function fireDown(
 }
 
 /**
- * Stationary vertical hazard from muzzle to player band. Visual size matches
- * Arcade body; segments expire after beamDurationMs (no slow crawl).
+ * One continuous vertical hazard from muzzle to player band on the dedicated
+ * laser pool (never the shared enemy projectile pool).
  */
-function spawnSodaLaserBeam(ctx: PatternFireContext, plan: SodaLaserCorridorPlan): number {
-  let fired = 0;
-  const expiresAtMs = (ctx.group.scene?.time.now ?? 0) + plan.beamDurationMs;
-  for (const y of plan.segmentYs) {
-    const sprite = fireProjectile(
-      ctx.group,
-      textureForBullet('sodaLaser'),
-      plan.laneX,
-      y,
-      0,
-      0,
-      enemyPayload('sodaLaser'),
-    );
-    if (!sprite) break;
-    // Display stretch; body uses unscaled frame so world AABB == display size.
-    sprite.setDisplaySize(plan.widthPx, plan.segmentSpacingPx);
-    const body = sprite.body as Phaser.Physics.Arcade.Body;
-    body.setSize(sprite.frame.width, sprite.frame.height);
-    body.setOffset(0, 0);
-    sprite.setData('expiresAtMs', expiresAtMs);
-    sprite.setData('sodaLaserLaneX', plan.laneX);
-    sprite.setData('sodaLaserEndY', plan.endY);
-    fired += 1;
-  }
-  return fired;
+export function spawnSodaLaserBeam(ctx: PatternFireContext, plan: SodaLaserCorridorPlan): number {
+  const laserGroup = ctx.laserGroup;
+  if (!laserGroup) return 0;
+  const nowMs = laserGroup.scene?.time.now ?? 0;
+  const result = spawnSodaLaserHazard(
+    plan,
+    (x, y) => {
+      const sprite = fireProjectile(
+        laserGroup,
+        textureForBullet('sodaLaser'),
+        x,
+        y,
+        0,
+        0,
+        enemyPayload('sodaLaser'),
+      );
+      if (!sprite) return null;
+      return {
+        setDisplaySize: (w, h) => {
+          sprite.setDisplaySize(w, h);
+        },
+        setPosition: (nx, ny) => {
+          sprite.setPosition(nx, ny);
+        },
+        setData: (key, value) => {
+          sprite.setData(key, value);
+        },
+        frame: { width: sprite.frame.width, height: sprite.frame.height },
+        body: sprite.body as Phaser.Physics.Arcade.Body,
+      };
+    },
+    nowMs,
+  );
+  return result.fired;
 }
 
 function spreadFan(

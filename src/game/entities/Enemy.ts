@@ -18,11 +18,30 @@ export type EnemyRuntimeData = {
   formationPhaseOffset: number;
   firePattern: PatternId;
   shotIndex: number;
+  /**
+   * Monotonic life-instance id for this pooled sprite. Delayed telegraph
+   * callbacks capture this value so a reused sprite cannot fire the previous
+   * life’s attack (ghost fire).
+   */
+  spawnGeneration: number;
   /** telegraphCharge state */
   chargeState: 'idle' | 'tell' | 'charge';
   chargeUntilMs: number;
   chargeDir: 1 | -1;
 };
+
+let nextEnemySpawnGeneration = 1;
+
+/** Test/reset helper — production never needs to call this. */
+export function resetEnemySpawnGenerationCounter(next = 1): void {
+  nextEnemySpawnGeneration = next;
+}
+
+export function allocateEnemySpawnGeneration(): number {
+  const value = nextEnemySpawnGeneration;
+  nextEnemySpawnGeneration += 1;
+  return value;
+}
 
 const TEXTURE_BY_ENEMY: Record<EnemyId, string> = {
   fryScout: TextureKey.enemyFryScout,
@@ -70,6 +89,7 @@ export function spawnEnemy(
     formationPhaseOffset: rollFormationPhaseOffset(random),
     firePattern: firePatternOverride ?? def.firePattern,
     shotIndex: 0,
+    spawnGeneration: allocateEnemySpawnGeneration(),
     chargeState: 'idle',
     chargeUntilMs: 0,
     chargeDir: x < 195 ? 1 : -1,

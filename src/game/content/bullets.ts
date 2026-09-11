@@ -14,7 +14,6 @@ export type BulletDefinition = {
   spreadDeg?: number;
   beamDurationMs?: number;
   beamHalfWidthPx?: number;
-  beamSegmentSpacingPx?: number;
   beamSourceOffsetY?: number;
   beamReachY?: number;
   playerBandY?: number;
@@ -71,7 +70,6 @@ export const bullets = {
     telegraphMs: GameBalance.bullet.sodaLaser.telegraphMs,
     beamDurationMs: GameBalance.bullet.sodaLaser.beamDurationMs,
     beamHalfWidthPx: GameBalance.bullet.sodaLaser.beamHalfWidthPx,
-    beamSegmentSpacingPx: GameBalance.bullet.sodaLaser.beamSegmentSpacingPx,
     beamSourceOffsetY: GameBalance.bullet.sodaLaser.beamSourceOffsetY,
     beamReachY: GameBalance.bullet.sodaLaser.beamReachY,
     playerBandY: GameBalance.bullet.sodaLaser.playerBandY,

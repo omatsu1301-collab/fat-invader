@@ -155,9 +155,7 @@ export const GameBalance = {
       beamDurationMs: 350,
       /** Half-width of the vertical corridor (visual = collision). */
       beamHalfWidthPx: 10,
-      /** Vertical spacing between pooled beam segments. */
-      beamSegmentSpacingPx: 32,
-      /** First segment offset below the muzzle. */
+      /** Top of the continuous hazard below the muzzle. */
       beamSourceOffsetY: 16,
       /**
        * Absolute end Y for tell + hazard (LOGICAL_HEIGHT - bottomInset).
@@ -249,6 +247,12 @@ export const GameBalance = {
   pools: {
     playerProjectile: 32,
     enemyProjectile: 220,
+    /**
+     * Dedicated soda-laser hazard pool (1 object per beam).
+     * Must stay separate from enemyProjectile so normal bullet pressure
+     * cannot shorten laser reach.
+     */
+    sodaLaser: 8,
     normalEnemy: 40,
     scorePopup: 20,
     particle: 320,

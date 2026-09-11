@@ -31,6 +31,7 @@ function runtimeFor(hp: number): EnemyRuntimeData {
     formationPhaseOffset: 0,
     firePattern: 'fryStraight',
     shotIndex: 0,
+    spawnGeneration: 1,
     chargeState: 'idle',
     chargeUntilMs: 0,
     chargeDir: 1,
