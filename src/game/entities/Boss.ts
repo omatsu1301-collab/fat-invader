@@ -21,6 +21,8 @@ export type BossHandle = {
 
 const TEXTURE_BY_BOSS: Record<BossId, string> = {
   kingBurgerMini: TextureKey.bossKingBurgerMini,
+  pizzaMother: TextureKey.bossPizzaMother,
+  kingCalorie: TextureKey.bossKingCalorie,
 };
 
 export function spawnBoss(

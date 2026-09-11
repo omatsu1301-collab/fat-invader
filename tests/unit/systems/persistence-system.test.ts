@@ -4,6 +4,7 @@ import {
   defaultSaveData,
   loadSaveData,
   recordScoreAndRank,
+  saveSettings,
 } from '../../../src/game/systems/PersistenceSystem';
 
 class MemoryStorage implements KeyValueStorage {
@@ -65,5 +66,15 @@ describe('PersistenceSystem', () => {
     expect(result.isNewHighScore).toBe(true);
     expect(result.data.highScore).toBe(500);
     expect(result.data.bestRank).toBeNull();
+  });
+
+  it('saveSettings merges and persists toggles', () => {
+    const storage = new MemoryStorage();
+    const base = defaultSaveData();
+    const next = saveSettings(storage, base, { bgm: false, reducedEffects: true });
+    expect(next.settings.bgm).toBe(false);
+    expect(next.settings.se).toBe(true);
+    expect(next.settings.reducedEffects).toBe(true);
+    expect(loadSaveData(storage).settings.bgm).toBe(false);
   });
 });

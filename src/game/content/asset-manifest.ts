@@ -101,11 +101,12 @@ function source(summary: string): AssetSource {
 export const NORTH_STAR_ASSETS = [
   {
     id: 'pixel.player.sannichibouzu.idle',
-    textureKey: TextureKey.player,
+    textureKey: TextureKey.playerSannichibouzuRef,
     role: 'player',
     northStar: true,
     humanGate: 'approved',
-    replacesPlaceholder: true,
+    /** Human 2026-09-11: retained as concept/reference; not runtime Player. */
+    replacesPlaceholder: false,
     rawSourcePath: 'assets-src/raw/chatgpt-2026-09-10/player_sannichibouzu.png',
     rawSourceWidth: 1254,
     rawSourceHeight: 1254,
@@ -136,7 +137,8 @@ export const NORTH_STAR_ASSETS = [
     license: SHARED_LICENSE,
     processingHistory: SHARED_HISTORY,
     subject: '三日坊主号',
-    humanDecision: 'PASS 2026-09-10',
+    humanDecision:
+      'PASS 2026-09-10 as North Star concept; 2026-09-11 deferred from runtime Player (visibility). Kept as future skin candidate.',
   },
   {
     id: 'pixel.enemy.fryScout.idle',

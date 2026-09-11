@@ -85,6 +85,23 @@ function persist(storage: KeyValueStorage, data: SaveDataV1): void {
   storage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
+/** Merges settings into the current save and persists immediately. */
+export function saveSettings(
+  storage: KeyValueStorage,
+  current: SaveDataV1,
+  settings: Partial<SaveDataV1['settings']>,
+): SaveDataV1 {
+  const data: SaveDataV1 = {
+    ...current,
+    settings: {
+      ...current.settings,
+      ...settings,
+    },
+  };
+  persist(storage, data);
+  return data;
+}
+
 /**
  * Records a completed run's score (and rank, when the run reached RUN
  * CLEAR — FAT OVER runs pass `rank: null` since evaluation only happens on

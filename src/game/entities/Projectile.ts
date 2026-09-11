@@ -21,8 +21,40 @@ export function projectileBodyForBulletId(bulletId: string): {
     // Visual canvas 12×16; collision remains 6×16 centered horizontally.
     return { width: 6, height: 16, offsetX: 3, offsetY: 0 };
   }
-  // fry and any other enemy food bullet in this pilot
-  return { width: 14, height: 14, offsetX: 0, offsetY: 0 };
+  if (bulletId === 'fry') {
+    return { width: 14, height: 14, offsetX: 0, offsetY: 0 };
+  }
+  if (bulletId === 'donut') {
+    return { width: 12, height: 12, offsetX: 2, offsetY: 2 };
+  }
+  if (bulletId === 'pizzaSlice') {
+    return { width: 12, height: 12, offsetX: 2, offsetY: 2 };
+  }
+  if (bulletId === 'tapioca') {
+    return { width: 8, height: 8, offsetX: 1, offsetY: 1 };
+  }
+  if (bulletId === 'cake') {
+    return { width: 18, height: 18, offsetX: 2, offsetY: 2 };
+  }
+  if (bulletId === 'sodaLaser') {
+    return { width: 14, height: 14, offsetX: 2, offsetY: 2 };
+  }
+  return { width: 12, height: 12, offsetX: 0, offsetY: 0 };
+}
+
+/** Optional sine drift for DONUT bullets (display path follows gameplay velocity X). */
+export function updateSineProjectiles(group: Phaser.Physics.Arcade.Group, nowMs: number): void {
+  for (const child of group.children) {
+    const sprite = child as Phaser.Physics.Arcade.Sprite;
+    if (!sprite.active) continue;
+    const sine = sprite.getData('sine') as
+      | { originX: number; amplitude: number; periodMs: number; bornAtMs: number; baseVx: number }
+      | undefined;
+    if (!sine) continue;
+    const t = nowMs - sine.bornAtMs;
+    const offset = Math.sin((t / sine.periodMs) * Math.PI * 2) * sine.amplitude;
+    sprite.x = sine.originX + offset + sine.baseVx * (t / 1000);
+  }
 }
 
 /**

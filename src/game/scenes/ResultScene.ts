@@ -43,7 +43,7 @@ export class ResultScene extends Phaser.Scene {
     const isClear = runState.endReason === 'CLEAR';
 
     this.add
-      .text(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT * 0.12, isClear ? 'STAGE CLEAR' : 'FAT OVER', {
+      .text(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT * 0.12, isClear ? 'RUN CLEAR' : 'FAT OVER', {
         fontFamily: 'monospace',
         fontSize: '28px',
         fontStyle: 'bold',
@@ -163,12 +163,15 @@ export class ResultScene extends Phaser.Scene {
 function appearancePlaceholder(rank: Rank): string {
   switch (rank) {
     case 'D':
-    case 'C':
       return '普通サイズで堂々と帰還した。';
+    case 'C':
+      return '少し汗をかいただけだ。まだ余裕がある。';
     case 'B':
-    case 'A':
       return '心なしか、少し引き締まった。';
+    case 'A':
+      return '採点文化は黙っていない。今日の体は「A」。';
     case 'S':
+      return '広告コピーが勝手に貼られる体型になった。';
     case 'SS':
       return 'BODY FAT 3% — WARNING';
   }

@@ -9,6 +9,12 @@ import { accuracy, applyGameEvent, createRunState, freshComboState } from '../do
 import type { RunEndReason, RunState } from '../domain/run-state';
 import { evaluateRun } from '../domain/evaluation';
 import { stageClearBonus, bossNoHitBonus } from '../domain/scoring';
+import {
+  applyTimedPowerUp,
+  createPowerUpTimers,
+  powerUpCombatMods,
+  type ActivePowerUpTimers,
+} from '../domain/powerup';
 import { PhaserClock } from '../adapters/PhaserClock';
 import { SeededRandom, createRunRandomSources, generateRuntimeSeed } from '../adapters/SeededRandom';
 import { rollEnemyFireDelayMs } from '../domain/combat-rng';
@@ -20,6 +26,7 @@ import type { PendingEnemyHit, PendingPlayerHit } from '../systems/CombatSystem'
 import type { ProjectilePayload } from '../entities/Projectile';
 import { WaveSystem } from '../systems/WaveSystem';
 import { activePhaseConfig, applyBossDamage, completeBossIntro } from '../systems/BossSystem';
+import { firePattern } from '../systems/PatternSystem';
 import { FeedbackSystem } from '../systems/FeedbackSystem';
 import { DisplayDepth } from '../config/display';
 import { DEFAULT_FEEL_SETTINGS, bossDeathBeatAt, type FeelSettings } from '../domain/feel';
@@ -28,25 +35,42 @@ import {
   applyFatOverPose,
   applyHitFlash,
   createPlayer,
+  displayScaleForTier,
   isInvulnerable,
   setAppearanceTint,
   updatePlayerMovement,
 } from '../entities/Player';
 import type { PlayerHandle } from '../entities/Player';
-import { deactivateEnemy, spawnEnemy, updateFormationMovement } from '../entities/Enemy';
+import { deactivateEnemy, spawnEnemy, updateEnemyMovement } from '../entities/Enemy';
 import type { EnemyRuntimeData } from '../entities/Enemy';
-import { deactivateProjectile, despawnOffscreen, fireProjectile } from '../entities/Projectile';
-import { disableBossHitbox, playBossHitFlash, spawnBoss, updateBossDeathPresentation, updateBossMovement } from '../entities/Boss';
+import {
+  deactivateProjectile,
+  despawnOffscreen,
+  fireProjectile,
+  updateSineProjectiles,
+} from '../entities/Projectile';
+import {
+  disableBossHitbox,
+  playBossHitFlash,
+  spawnBoss,
+  updateBossDeathPresentation,
+  updateBossMovement,
+} from '../entities/Boss';
 import type { BossHandle } from '../entities/Boss';
-import { waves } from '../content/waves';
-import { bullets } from '../content/bullets';
+import { deactivatePowerUp, spawnPowerUp } from '../entities/PowerUp';
+import type { PowerUpRuntimeData } from '../entities/PowerUp';
+import { waves, type WaveId } from '../content/waves';
 import { enemies as enemyContent } from '../content/enemies';
+import { bosses } from '../content/bosses';
+import { stageByIndex, TOTAL_STAGES, type StageDefinition } from '../content/stages';
+import { POWERUP_IDS, type PowerUpId } from '../content/powerups';
 import {
   E2E_SEED_REGISTRY_KEY,
   publishRunSnapshot,
   registerActiveGameSceneHooks,
 } from '../../test-support/e2e-bridge';
 import type { E2EDebugHooks, FatE2ERunSnapshot } from '../../test-support/e2e-bridge';
+import { AudioSystem } from '../systems/AudioSystem';
 
 type Phase =
   | 'stageIntro'
@@ -56,6 +80,7 @@ type Phase =
   | 'bossActive'
   | 'bossDeath'
   | 'stageClear'
+  | 'stageTransition'
   | 'ended';
 
 const PLAYFIELD_BOTTOM = LOGICAL_HEIGHT - GameBalance.playfield.bottomInset;
@@ -73,14 +98,17 @@ export class GameScene extends Phaser.Scene {
   private storage = new LocalStorageAdapter();
   private eventBus = new GameEventBus();
   private inputSystem!: InputSystem;
+  private audio: AudioSystem | null = null;
 
   private runState!: RunState;
   private comboState: ComboState = freshComboState();
+  private powerUpTimers: ActivePowerUpTimers = createPowerUpTimers();
 
   private player!: PlayerHandle;
   private enemiesGroup!: Phaser.Physics.Arcade.Group;
   private playerProjectiles!: Phaser.Physics.Arcade.Group;
   private enemyProjectiles!: Phaser.Physics.Arcade.Group;
+  private powerUpsGroup!: Phaser.Physics.Arcade.Group;
   private boss: BossHandle | null = null;
   private waveSystem: WaveSystem | null = null;
 
@@ -88,6 +116,10 @@ export class GameScene extends Phaser.Scene {
   private phaseStartedAtMs = 0;
   private paused = false;
   private bossFightNoHit = true;
+  private waveIndexInStage = 0;
+  private lastPowerUpGrantedAtMs = 0;
+  private bossShotIndex = 0;
+  private activeTells: Phaser.GameObjects.GameObject[] = [];
 
   private pendingEnemyHits: PendingEnemyHit[] = [];
   private pendingPlayerHits: PendingPlayerHit[] = [];
@@ -128,15 +160,20 @@ export class GameScene extends Phaser.Scene {
     this.vfxRandom = rng.vfxRandom;
     this.runState = createRunState(seed, 0);
     this.comboState = setFrozen(freshComboState(), true, 0);
+    this.powerUpTimers = createPowerUpTimers();
     this.phase = 'stageIntro';
     this.phaseStartedAtMs = 0;
     this.paused = false;
     this.bossFightNoHit = true;
+    this.waveIndexInStage = 0;
+    this.lastPowerUpGrantedAtMs = 0;
+    this.bossShotIndex = 0;
     this.boss = null;
     this.waveSystem = null;
     this.pendingEnemyHits = [];
     this.pendingPlayerHits = [];
     this.pendingBossHits = [];
+    this.activeTells = [];
     this.feelSettings = toFeelSettings(loadSaveData(this.storage).settings);
     this.fatOverPoseApplied = false;
     this.runEndedCount = 0;
@@ -167,6 +204,11 @@ export class GameScene extends Phaser.Scene {
       maxSize: GameBalance.pools.enemyProjectile,
       runChildUpdate: false,
     });
+    this.powerUpsGroup = this.physics.add.group({
+      classType: Phaser.Physics.Arcade.Sprite,
+      maxSize: GameBalance.pools.powerup,
+      runChildUpdate: false,
+    });
 
     this.physics.add.overlap(
       this.playerProjectiles,
@@ -189,8 +231,17 @@ export class GameScene extends Phaser.Scene {
       undefined,
       this,
     );
+    this.physics.add.overlap(
+      this.powerUpsGroup,
+      this.player.sprite,
+      (a, b) => this.onPowerUpCollected(a, b),
+      undefined,
+      this,
+    );
 
     this.inputSystem = new InputSystem(this, isMobileViewport());
+    this.audio = new AudioSystem(loadSaveData(this.storage).settings);
+    this.audio.unlockOnGesture(this);
 
     this.feedback = new FeedbackSystem(
       this,
@@ -209,7 +260,16 @@ export class GameScene extends Phaser.Scene {
 
     registerActiveGameSceneHooks(this.game, this.buildDebugHooks());
 
-    this.showCaption('STAGE 1 — BURGER DISTRICT\n香りから逃げろ。');
+    this.showStageIntroCaption();
+  }
+
+  private currentStage(): StageDefinition {
+    return stageByIndex(this.runState.stageIndex) ?? stageByIndex(0)!;
+  }
+
+  private showStageIntroCaption(): void {
+    const stage = this.currentStage();
+    this.showCaption(`STAGE ${stage.index + 1} — ${stage.name}`);
   }
 
   private buildHud(): void {
@@ -240,12 +300,9 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0, 0.5)
       .setDepth(DisplayDepth.hud);
 
-    // Milestone A causal-confirmation UI (not final art): lets a player see
-    // that their shots are actually damaging the boss. Read-only display of
-    // BossState; never decides hitboxes or gameplay outcomes.
     const bossBarWidth = 220;
     this.bossHpLabel = this.add
-      .text(LOGICAL_WIDTH / 2, 46, 'KING BURGER', {
+      .text(LOGICAL_WIDTH / 2, 46, '', {
         fontFamily: 'monospace',
         fontSize: '11px',
         color: COLOR_UI_MUTED,
@@ -359,27 +416,37 @@ export class GameScene extends Phaser.Scene {
     this.comboState = tickExpiry(this.comboState, nowMs);
 
     const tier = calorieTier(this.runState.calorie);
+    const mods = powerUpCombatMods(this.powerUpTimers, nowMs);
     const speedMultiplier =
-      tier === 'overflowing' ? GameBalance.player.overflowingSpeedMultiplier : 1;
+      (tier === 'overflowing' ? GameBalance.player.overflowingSpeedMultiplier : 1) *
+      mods.moveSpeedMultiplier;
     updatePlayerMovement(this.player, intent, dt, speedMultiplier);
     setAppearanceTint(this.player, tier);
+    if (!this.fatOverPoseApplied) {
+      const scale = displayScaleForTier(tier);
+      this.player.sprite.setScale(scale);
+    }
 
     if (intent.firing && nowMs >= this.player.nextFireAtMs) {
       this.firePlayerShot(nowMs);
     }
 
     despawnOffscreen(this.playerProjectiles, LOGICAL_HEIGHT);
-    // FI-03 section 8 (relaxed v0.1 rule): any enemy bullet that leaves the
-    // playfield without hitting the player counts as dodged exactly once —
-    // guaranteed by the active-flag check in despawnOffscreen, since a
-    // bullet that already hit the player was deactivated by
-    // onEnemyProjectileHitsPlayer and never reaches this sweep.
     despawnOffscreen(this.enemyProjectiles, LOGICAL_HEIGHT, (sprite) => {
       const payload = sprite.getData('payload') as { calorie: number } | undefined;
       if (payload) {
         this.applyEvent({ type: 'BULLET_DODGED', calorie: payload.calorie });
       }
     });
+    for (const child of this.powerUpsGroup.children) {
+      const sprite = child as Phaser.Physics.Arcade.Sprite;
+      if (!sprite.active) continue;
+      if (sprite.y > LOGICAL_HEIGHT + 32 || sprite.y < -32) {
+        deactivatePowerUp(sprite);
+      }
+    }
+
+    updateSineProjectiles(this.enemyProjectiles, nowMs);
 
     switch (this.phase) {
       case 'stageIntro':
@@ -397,19 +464,36 @@ export class GameScene extends Phaser.Scene {
         break;
       case 'bossIntro':
         this.updateBossPatrol(dt);
-        if (nowMs - this.phaseStartedAtMs >= GameBalance.boss.kingBurgerMini.introDurationMs) {
-          this.finishBossIntro(nowMs);
+        if (this.boss) {
+          const introMs = bosses[this.boss.bossId].introDurationMs;
+          if (nowMs - this.phaseStartedAtMs >= introMs) {
+            this.finishBossIntro(nowMs);
+          }
         }
         break;
       case 'bossActive':
         this.updateBossActive(nowMs, dt);
         break;
       case 'bossDeath':
-        if (nowMs - this.phaseStartedAtMs >= GameBalance.boss.kingBurgerMini.deathDurationMs) {
-          this.enterPhase('stageClear', nowMs);
+        if (this.boss) {
+          const deathMs = bosses[this.boss.bossId].deathDurationMs;
+          if (nowMs - this.phaseStartedAtMs >= deathMs) {
+            this.enterPhase('stageClear', nowMs);
+          }
         }
         break;
       case 'stageClear':
+        if (nowMs - this.phaseStartedAtMs >= 800) {
+          if (this.runState.stageIndex < TOTAL_STAGES && !this.runState.endReason) {
+            this.enterPhase('stageTransition', nowMs);
+          }
+        }
+        break;
+      case 'stageTransition':
+        if (nowMs - this.phaseStartedAtMs >= GameBalance.wave.stageTransitionHoldMs) {
+          this.beginNextStageIntro(nowMs);
+        }
+        break;
       case 'ended':
         break;
     }
@@ -424,13 +508,25 @@ export class GameScene extends Phaser.Scene {
     if (phase === 'wave') {
       this.hideCaption();
       this.comboState = setFrozen(this.comboState, false, nowMs);
-      this.waveSystem = new WaveSystem(waves.stage1Wave1, nowMs);
+      this.startCurrentWave(nowMs);
     } else if (phase === 'bossWarning') {
       this.comboState = setFrozen(this.comboState, true, nowMs);
       this.showCaption('WARNING\n巨大な誘惑が接近中');
     } else if (phase === 'stageClear') {
       this.handleStageClear();
+    } else if (phase === 'stageTransition') {
+      this.showCaption('NEXT STAGE');
     }
+  }
+
+  private startCurrentWave(nowMs: number): void {
+    const stage = this.currentStage();
+    const waveId = stage.waveIds[this.waveIndexInStage] as WaveId | undefined;
+    if (!waveId) {
+      this.enterPhase('bossWarning', nowMs);
+      return;
+    }
+    this.waveSystem = new WaveSystem(waves[waveId], nowMs);
   }
 
   private updateWave(nowMs: number): void {
@@ -440,7 +536,15 @@ export class GameScene extends Phaser.Scene {
       const spacingX = 90;
       const x = 60 + cmd.gridX * spacingX;
       const y = 110 + cmd.gridY * 60;
-      spawnEnemy(this.enemiesGroup, cmd.enemyId, x, y, nowMs, this.gameplayRandom);
+      spawnEnemy(
+        this.enemiesGroup,
+        cmd.enemyId,
+        x,
+        y,
+        nowMs,
+        this.gameplayRandom,
+        cmd.firePatternOverride,
+      );
     }
 
     const descentPxPerSec =
@@ -448,7 +552,7 @@ export class GameScene extends Phaser.Scene {
     for (const child of this.enemiesGroup.children) {
       const sprite = child as Phaser.Physics.Arcade.Sprite;
       if (!sprite.active) continue;
-      updateFormationMovement(sprite, nowMs, descentPxPerSec, 18);
+      updateEnemyMovement(sprite, nowMs, descentPxPerSec);
       this.updateEnemyFire(sprite, nowMs);
       if (sprite.y > PLAYFIELD_BOTTOM) {
         this.despawnEnemyOffscreen(sprite);
@@ -457,7 +561,21 @@ export class GameScene extends Phaser.Scene {
 
     const activeCount = this.countActiveEnemies();
     if (this.waveSystem.checkCompletion(activeCount)) {
+      this.onWaveCompleted(nowMs);
+    }
+  }
+
+  private onWaveCompleted(nowMs: number): void {
+    const stage = this.currentStage();
+    const waveId = stage.waveIds[this.waveIndexInStage];
+    if (waveId) {
+      this.applyEvent({ type: 'WAVE_COMPLETED', waveId });
+    }
+    this.waveIndexInStage += 1;
+    if (this.waveIndexInStage >= stage.waveIds.length) {
       this.enterPhase('bossWarning', nowMs);
+    } else {
+      this.startCurrentWave(nowMs);
     }
   }
 
@@ -469,19 +587,67 @@ export class GameScene extends Phaser.Scene {
     const runtime = sprite.getData('enemy') as EnemyRuntimeData;
     if (nowMs < runtime.nextFireAtMs) return;
     const def = enemyContent[runtime.enemyId];
-    const bulletDef = bullets[def.bulletId as keyof typeof bullets];
-    fireProjectile(
-      this.enemyProjectiles,
-      TextureKey.bulletFry,
-      sprite.x,
-      sprite.y + 16,
-      0,
-      bulletDef.speedPxPerSec,
-      { kind: 'enemy', damage: 0, calorie: bulletDef.calorie, bulletId: bulletDef.id },
-    );
+    const patternId = runtime.firePattern;
+    firePattern({
+      group: this.enemyProjectiles,
+      x: sprite.x,
+      y: sprite.y + 16,
+      patternId,
+      shotIndex: runtime.shotIndex,
+      playerX: this.player.sprite.x,
+      scheduleTelegraph: (delayMs, fire) => {
+        this.scheduleTelegraphFire(delayMs, fire, () => sprite.active && this.phase === 'wave');
+      },
+      showTell: (kind, x, y, meta) => this.showTellGraphics(kind, x, y, meta),
+    });
+    runtime.shotIndex += 1;
     const delay = rollEnemyFireDelayMs(this.gameplayRandom, def.fireRateMs, def.fireIntervalJitterMs);
     runtime.lastFireDelayMs = delay;
     runtime.nextFireAtMs = nowMs + delay;
+  }
+
+  private scheduleTelegraphFire(
+    delayMs: number,
+    fire: () => void,
+    stillValid: () => boolean,
+  ): void {
+    this.time.delayedCall(delayMs, () => {
+      if (this.phase !== 'wave' && this.phase !== 'bossActive') return;
+      if (!stillValid()) return;
+      fire();
+    });
+  }
+
+  private showTellGraphics(
+    kind: 'diagonal' | 'laser' | 'cast',
+    x: number,
+    y: number,
+    meta?: number,
+  ): void {
+    let obj: Phaser.GameObjects.GameObject;
+    if (kind === 'laser') {
+      obj = this.add
+        .rectangle(x, y + 120, 10, 240, 0xff6b6b, 0.35)
+        .setDepth(DisplayDepth.caption - 1);
+    } else if (kind === 'diagonal') {
+      const dir = meta ?? 1;
+      const line = this.add.graphics().setDepth(DisplayDepth.caption - 1);
+      line.lineStyle(2, 0xffb33d, 0.7);
+      line.beginPath();
+      line.moveTo(x, y);
+      line.lineTo(x + dir * 80, y + 140);
+      line.strokePath();
+      obj = line;
+    } else {
+      obj = this.add
+        .rectangle(x, y + 20, 28, 28, 0xff71c8, 0.4)
+        .setDepth(DisplayDepth.caption - 1);
+    }
+    this.activeTells.push(obj);
+    this.time.delayedCall(650, () => {
+      obj.destroy();
+      this.activeTells = this.activeTells.filter((t) => t !== obj);
+    });
   }
 
   private despawnEnemyOffscreen(sprite: Phaser.Physics.Arcade.Sprite): void {
@@ -492,15 +658,16 @@ export class GameScene extends Phaser.Scene {
     this.phase = 'bossIntro';
     this.phaseStartedAtMs = nowMs;
     this.hideCaption();
-    // Clear any straggling enemy bullets before the boss appears (FI-03 2.5).
     for (const child of this.enemyProjectiles.children) {
       deactivateProjectile(child as Phaser.Physics.Arcade.Sprite);
     }
+    this.clearTells();
     this.bossFightNoHit = true;
-    this.boss = spawnBoss(this, 'kingBurgerMini', LOGICAL_WIDTH / 2, 130, nowMs);
-    // Real player-projectile-vs-boss collision, registered once the boss
-    // sprite exists. Damage applicability (intro vs active) is gated inside
-    // the handler itself, not by when this collider exists.
+    this.bossShotIndex = 0;
+    const stage = this.currentStage();
+    const bossId = stage.bossId;
+    this.boss = spawnBoss(this, bossId, LOGICAL_WIDTH / 2, 130, nowMs);
+    this.bossHpLabel.setText(bosses[bossId].displayName);
     this.physics.add.overlap(
       this.playerProjectiles,
       this.boss.sprite,
@@ -508,7 +675,7 @@ export class GameScene extends Phaser.Scene {
       undefined,
       this,
     );
-    this.showCaption('KING BURGER');
+    this.showCaption(bosses[bossId].displayName);
   }
 
   private updateBossPatrol(dt: number): void {
@@ -516,7 +683,7 @@ export class GameScene extends Phaser.Scene {
     updateBossMovement(
       this.boss,
       dt,
-      GameBalance.boss.kingBurgerMini.phase1.moveSpeedPxPerSec,
+      bosses[this.boss.bossId].phase1.moveSpeedPxPerSec,
       PLAYER_MARGIN + 20,
       LOGICAL_WIDTH - PLAYER_MARGIN - 20,
     );
@@ -544,91 +711,127 @@ export class GameScene extends Phaser.Scene {
     );
 
     if (nowMs >= this.boss.nextFireAtMs) {
-      this.bossFire(cfg.bulletCount);
+      this.bossFire(cfg.patternId);
       this.boss.nextFireAtMs = nowMs + cfg.fireIntervalMs;
     }
   }
 
-  private bossFire(bulletCount: number): void {
+  private bossFire(patternId: import('../content/patterns').PatternId): void {
     if (!this.boss) return;
-    const bulletDef = bullets.fry;
-    const baseX = this.boss.sprite.x;
-    const baseY = this.boss.sprite.y + 30;
-    const speed = bulletDef.speedPxPerSec;
-
-    if (bulletCount <= 1) {
-      fireProjectile(this.enemyProjectiles, TextureKey.bulletFry, baseX, baseY, 0, speed, {
-        kind: 'enemy',
-        damage: 0,
-        calorie: bulletDef.calorie,
-        bulletId: bulletDef.id,
-      });
-      return;
-    }
-
-    const spreadDeg = 24;
-    for (let i = 0; i < bulletCount; i += 1) {
-      const t = bulletCount === 1 ? 0 : i / (bulletCount - 1) - 0.5;
-      const angleDeg = t * spreadDeg * 2;
-      const angleRad = Phaser.Math.DegToRad(90 + angleDeg);
-      const vx = Math.cos(angleRad) * speed;
-      const vy = Math.sin(angleRad) * speed;
-      fireProjectile(this.enemyProjectiles, TextureKey.bulletFry, baseX, baseY, vx, vy, {
-        kind: 'enemy',
-        damage: 0,
-        calorie: bulletDef.calorie,
-        bulletId: bulletDef.id,
-      });
-    }
+    const bossRef = this.boss;
+    firePattern({
+      group: this.enemyProjectiles,
+      x: bossRef.sprite.x,
+      y: bossRef.sprite.y + 30,
+      patternId,
+      shotIndex: this.bossShotIndex,
+      playerX: this.player.sprite.x,
+      scheduleTelegraph: (delayMs, fire) => {
+        this.scheduleTelegraphFire(
+          delayMs,
+          fire,
+          () => Boolean(this.boss) && this.boss!.sprite.active && this.phase === 'bossActive',
+        );
+      },
+      showTell: (kind, x, y, meta) => this.showTellGraphics(kind, x, y, meta),
+    });
+    this.bossShotIndex += 1;
   }
 
   private handleStageClear(): void {
-    if (!this.boss) return;
-    this.applyEvent({ type: 'STAGE_CLEARED', stageId: 'stage1' });
+    const clearedStage = this.currentStage();
+    this.applyEvent({ type: 'STAGE_CLEARED', stageId: clearedStage.id });
     this.runState = {
       ...this.runState,
       calorie: Math.max(0, this.runState.calorie - GameBalance.scoring.caloriePerStageClearDecay),
     };
 
-    const stageNumber = 1;
+    // After STAGE_CLEARED, stageIndex already points at the next slot.
+    const stageNumber = this.runState.stageIndex;
     let bonus = stageClearBonus(stageNumber, GameBalance.scoring.stageClearBonusPerStage);
     if (this.bossFightNoHit) {
       bonus += bossNoHitBonus(stageNumber, GameBalance.scoring.bossNoHitBonusPerStage);
     }
-    bonus += GameBalance.scoring.runClearBonus;
+
+    const isFinal = this.runState.stageIndex >= TOTAL_STAGES;
+    if (isFinal) {
+      bonus += GameBalance.scoring.runClearBonus;
+    }
     this.runState = { ...this.runState, score: this.runState.score + bonus };
 
-    this.showCaption('STAGE CLEAR');
-    this.applyEvent({ type: 'RUN_ENDED', reason: 'CLEAR' });
+    this.clearEnemyBullets();
+    if (this.boss) {
+      this.boss.sprite.destroy();
+      this.boss = null;
+    }
+    this.clearTells();
+
+    if (isFinal) {
+      this.showCaption('RUN CLEAR');
+      this.applyEvent({ type: 'RUN_ENDED', reason: 'CLEAR' });
+    } else {
+      this.showCaption('STAGE CLEAR');
+    }
+  }
+
+  private beginNextStageIntro(nowMs: number): void {
+    this.waveIndexInStage = 0;
+    this.bossFightNoHit = true;
+    this.powerUpTimers = createPowerUpTimers();
+    this.phase = 'stageIntro';
+    this.phaseStartedAtMs = nowMs;
+    this.comboState = setFrozen(this.comboState, true, nowMs);
+    this.showStageIntroCaption();
+  }
+
+  private clearEnemyBullets(): void {
+    for (const child of this.enemyProjectiles.children) {
+      deactivateProjectile(child as Phaser.Physics.Arcade.Sprite);
+    }
+  }
+
+  private clearTells(): void {
+    for (const tell of this.activeTells) {
+      tell.destroy();
+    }
+    this.activeTells = [];
   }
 
   private firePlayerShot(nowMs: number): void {
-    const sprite = fireProjectile(
-      this.playerProjectiles,
-      TextureKey.bulletPlayer,
-      this.player.sprite.x,
-      this.player.sprite.y - 20,
-      0,
-      -GameBalance.bullet.playerShot.speedPxPerSec,
-      {
+    const mods = powerUpCombatMods(this.powerUpTimers, nowMs);
+    const damage = mods.shotDamage;
+    const speed = -GameBalance.bullet.playerShot.speedPxPerSec;
+    const baseX = this.player.sprite.x;
+    const baseY = this.player.sprite.y - 20;
+
+    const fireOne = (vx: number, vy: number): Phaser.Physics.Arcade.Sprite | null =>
+      fireProjectile(this.playerProjectiles, TextureKey.bulletPlayer, baseX, baseY, vx, vy, {
         kind: 'player',
-        damage: GameBalance.player.shotDamage,
+        damage,
         calorie: 0,
         bulletId: 'playerShot',
-      },
-    );
-    if (sprite) {
-      this.player.nextFireAtMs = nowMs + GameBalance.player.baseFireIntervalMs;
-      this.applyEvent({ type: 'SHOT_FIRED', weaponId: 'metabolicShot' });
+      });
+
+    let fired: Phaser.Physics.Arcade.Sprite | null = null;
+    if (mods.tripleShot) {
+      const spread = 18;
+      for (const angleDeg of [-spread, 0, spread]) {
+        const rad = Phaser.Math.DegToRad(-90 + angleDeg);
+        const sprite = fireOne(Math.cos(rad) * Math.abs(speed), Math.sin(rad) * Math.abs(speed));
+        if (sprite) fired = sprite;
+      }
+    } else {
+      fired = fireOne(0, speed);
+    }
+
+    if (fired) {
+      this.player.nextFireAtMs = nowMs + mods.fireIntervalMs;
+      this.applyEvent({ type: 'SHOT_FIRED', weaponId: 'crumpledCheckup' });
+      this.audio?.playSe('shot');
     }
   }
 
   private onPlayerProjectileHitsEnemy(a: unknown, b: unknown): void {
-    // Both sides are Groups here (no single stable "the" enemy to compare
-    // identity against), so discrimination is data-driven: whichever sprite
-    // carries enemy runtime data is the enemy, whichever carries a
-    // player-kind projectile payload is the bullet. Same hardening
-    // principle as the boss/player handlers — never trust argument position.
     const sprites = [a, b] as Phaser.Physics.Arcade.Sprite[];
     const enemySprite = sprites.find((s) => s.getData('enemy') !== undefined);
     const projSprite = sprites.find(
@@ -636,26 +839,16 @@ export class GameScene extends Phaser.Scene {
     );
     if (!enemySprite || !projSprite || enemySprite === projSprite) return;
     if (!projSprite.active || !enemySprite.active) return;
+    const payload = projSprite.getData('payload') as ProjectilePayload;
     this.pendingEnemyHits.push({
       sprite: enemySprite,
-      damage: GameBalance.player.shotDamage,
+      damage: payload.damage,
       x: enemySprite.x,
       y: enemySprite.y,
     });
     deactivateProjectile(projSprite);
   }
 
-  /**
-   * P1 regression fix: previously assumed argument 1 was always the
-   * projectile and deactivated it unconditionally — but Arcade Physics does
-   * not guarantee argument order when one side of an overlap is a lone
-   * GameObject (the boss sprite) and the other a Group (playerProjectiles).
-   * In production this deactivated the BOSS sprite on first hit instead of
-   * the bullet: the boss vanished (active=false, visible=false, body
-   * disabled) while its BossState never reached 'dead', so it kept firing
-   * and could never be damaged again. Fixed by identifying each side by
-   * identity/payload, never by position.
-   */
   private onPlayerProjectileHitsBoss(a: unknown, b: unknown): void {
     if (!this.boss) return;
     const bossSpriteRef = this.boss.sprite;
@@ -669,21 +862,15 @@ export class GameScene extends Phaser.Scene {
     const projSprite = picked.other;
     if (!projSprite.active || !bossSprite.active) return;
 
-    // Defense in depth: only ever consume something that is actually a
-    // player projectile, never the boss itself, regardless of the identity
-    // check above.
     const payload = projSprite.getData('payload') as ProjectilePayload | undefined;
     if (payload?.kind !== 'player') return;
 
-    // FI-03 section 2.5: "Boss intro中は...射撃ダメージ無効でもよい" — the
-    // bullet is still consumed (it visibly "hits" the boss) but deals no
-    // damage until the boss is actually in a combat phase.
     if (this.boss.state.phase === 'intro' || this.boss.state.phase === 'dead') {
       deactivateProjectile(projSprite);
       return;
     }
     deactivateProjectile(projSprite);
-    this.pendingBossHits.push(GameBalance.player.shotDamage);
+    this.pendingBossHits.push(payload.damage);
   }
 
   private onEnemyProjectileHitsPlayer(a: unknown, b: unknown): void {
@@ -719,6 +906,61 @@ export class GameScene extends Phaser.Scene {
     deactivateEnemy(enemySprite);
   }
 
+  private onPowerUpCollected(a: unknown, b: unknown): void {
+    const playerSpriteRef = this.player.sprite;
+    const picked = pickByIdentity(
+      a as Phaser.Physics.Arcade.Sprite,
+      b as Phaser.Physics.Arcade.Sprite,
+      (candidate) => candidate === playerSpriteRef,
+    );
+    if (!picked) return;
+    const pickup = picked.other;
+    if (!pickup.active) return;
+    const data = pickup.getData('powerup') as PowerUpRuntimeData | undefined;
+    if (!data) return;
+    deactivatePowerUp(pickup);
+    this.collectPowerUp(data.powerUpId, this.clock.nowMs());
+  }
+
+  private collectPowerUp(powerUpId: PowerUpId, nowMs: number): void {
+    this.applyEvent({ type: 'POWERUP_COLLECTED', powerUpId });
+    this.audio?.playSe('pickup');
+
+    if (powerUpId === 'fatBurn') {
+      this.convertEnemyBulletsToSparks();
+      for (const child of this.enemiesGroup.children) {
+        const sprite = child as Phaser.Physics.Arcade.Sprite;
+        if (!sprite.active) continue;
+        this.pendingEnemyHits.push({
+          sprite,
+          damage: GameBalance.powerup.fatBurn.enemyDamage,
+          x: sprite.x,
+          y: sprite.y,
+        });
+      }
+      return;
+    }
+
+    this.powerUpTimers = applyTimedPowerUp(this.powerUpTimers, powerUpId, nowMs);
+
+    if (powerUpId === 'cheatDay') {
+      const cost = GameBalance.powerup.cheatDay.calorieCost;
+      const total = applyCalorie(this.runState.calorie, cost);
+      this.applyEvent({ type: 'PLAYER_HIT', calorie: cost, total });
+    }
+  }
+
+  private maybeDropPowerUp(x: number, y: number, nowMs: number): void {
+    const roll = this.gameplayRandom.next();
+    const pityDue = nowMs - this.lastPowerUpGrantedAtMs >= GameBalance.powerup.pityMs;
+    if (roll >= GameBalance.powerup.dropRate && !pityDue) return;
+    const id = POWERUP_IDS[this.gameplayRandom.nextInt(0, POWERUP_IDS.length - 1)]!;
+    const spawned = spawnPowerUp(this.powerUpsGroup, id, x, y);
+    if (spawned) {
+      this.lastPowerUpGrantedAtMs = nowMs;
+    }
+  }
+
   private resolveCombat(nowMs: number): void {
     if (this.pendingEnemyHits.length > 0) {
       const outcomes = resolveEnemyHits(this.pendingEnemyHits);
@@ -727,8 +969,6 @@ export class GameScene extends Phaser.Scene {
         this.applyEvent({ type: 'ENEMY_HIT', enemyId: outcome.enemyId, x: outcome.x, y: outcome.y });
         if (outcome.killed) {
           deactivateEnemy(outcome.sprite);
-          // The reducer (not this payload) computes the authoritative post-kill
-          // combo; `combo` here is a same-tick prediction for event listeners.
           const predictedCombo = this.comboState.frozen ? this.runState.combo : this.runState.combo + 1;
           this.applyEvent({
             type: 'ENEMY_KILLED',
@@ -738,6 +978,9 @@ export class GameScene extends Phaser.Scene {
             x: outcome.x,
             y: outcome.y,
           });
+          if (enemyContent[outcome.enemyId].dropEligible) {
+            this.maybeDropPowerUp(outcome.x, outcome.y, nowMs);
+          }
         }
       }
     }
@@ -762,20 +1005,24 @@ export class GameScene extends Phaser.Scene {
         this.comboState = setFrozen(this.comboState, true, nowMs);
         this.phase = 'bossDeath';
         this.phaseStartedAtMs = nowMs;
+        this.audio?.playSe('bossKill');
       }
     }
 
     if (this.pendingPlayerHits.length > 0) {
-      if (this.phase === 'bossDeath' || this.phase === 'stageClear') {
+      if (this.phase === 'bossDeath' || this.phase === 'stageClear' || this.phase === 'stageTransition') {
         this.pendingPlayerHits = [];
       } else {
-        const hit = resolveFirstPlayerHit(this.pendingPlayerHits, isInvulnerable(this.player, nowMs));
+        const mods = powerUpCombatMods(this.powerUpTimers, nowMs);
+        const invuln = isInvulnerable(this.player, nowMs) || mods.invulnerable;
+        const hit = resolveFirstPlayerHit(this.pendingPlayerHits, invuln);
         this.pendingPlayerHits = [];
         if (hit) {
           this.bossFightNoHit = false;
           const total = applyCalorie(this.runState.calorie, hit.calorie);
           applyHitFlash(this.player, nowMs);
           this.applyEvent({ type: 'PLAYER_HIT', calorie: hit.calorie, total });
+          this.audio?.playSe('hit');
         }
       }
     }
@@ -870,12 +1117,6 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
-  /**
-   * Milestone A causal-confirmation UI (see buildHud): visible only once the
-   * boss is actually damageable (post-intro) and hidden again on defeat.
-   * Purely a read of BossState — never influences the hitbox or combat
-   * outcome.
-   */
   private updateBossHpBar(): void {
     const boss = this.boss;
     const shouldShow = Boolean(boss) && boss!.state.phase !== 'intro' && boss!.state.phase !== 'dead';
@@ -904,8 +1145,11 @@ export class GameScene extends Phaser.Scene {
       activePlayerProjectiles: countActive(this.playerProjectiles),
       activeEnemyProjectiles: countActive(this.enemyProjectiles),
       activeEnemies: countActive(this.enemiesGroup),
+      activePowerUps: countActive(this.powerUpsGroup),
       enemyFireDelayMs: this.collectEnemyFireDelays(),
       enemyFormationOffsets: this.collectEnemyFormationOffsets(),
+      phase: this.phase,
+      waveIndexInStage: this.waveIndexInStage,
       ...this.feelSnapshot(),
       ...(this.runState.endReason ? { endReason: this.runState.endReason } : {}),
       ...(this.boss
@@ -945,9 +1189,6 @@ export class GameScene extends Phaser.Scene {
           }
         }
       },
-      // Adjusts boss HP only — the actual kill must still go through a real
-      // player-projectile-vs-boss collision (never sets hp to 0 itself), so
-      // E2E coverage of boss defeat exercises the production combat path.
       debugSetBossHp: (hp: number): void => {
         if (!this.boss) return;
         const clamped = Math.max(1, Math.min(hp, this.boss.state.maxHp));
@@ -978,6 +1219,85 @@ export class GameScene extends Phaser.Scene {
       },
       debugPlayDisplayKill: (): void => {
         this.feedback.playDisplayKillForDebug(this.player.sprite.x, this.player.sprite.y);
+      },
+      debugSkipToBoss: (): void => {
+        for (const child of this.enemiesGroup.children) {
+          const sprite = child as Phaser.Physics.Arcade.Sprite;
+          if (sprite.active) deactivateEnemy(sprite);
+        }
+        this.waveSystem = null;
+        this.waveIndexInStage = this.currentStage().waveIds.length;
+        this.enterPhase('bossWarning', this.clock.nowMs());
+      },
+      debugSkipWave: (): void => {
+        for (const child of this.enemiesGroup.children) {
+          const sprite = child as Phaser.Physics.Arcade.Sprite;
+          if (sprite.active) deactivateEnemy(sprite);
+        }
+        if (this.phase === 'wave' && this.waveSystem) {
+          this.waveSystem.forceComplete();
+          this.onWaveCompleted(this.clock.nowMs());
+        }
+      },
+      debugAdvanceStage: (force = false): void => {
+        const nowMs = this.clock.nowMs();
+        if (this.phase === 'stageClear' || this.phase === 'stageTransition') {
+          if (this.runState.stageIndex >= TOTAL_STAGES) return;
+          this.beginNextStageIntro(nowMs);
+          return;
+        }
+        if (!force) return;
+        if (this.runState.endReason) return;
+        // Force-complete current stage rewards then jump to next intro or run end.
+        if (this.boss) {
+          this.boss.sprite.destroy();
+          this.boss = null;
+        }
+        this.clearEnemyBullets();
+        for (const child of this.enemiesGroup.children) {
+          const sprite = child as Phaser.Physics.Arcade.Sprite;
+          if (sprite.active) deactivateEnemy(sprite);
+        }
+        this.phase = 'stageClear';
+        this.phaseStartedAtMs = nowMs;
+        this.handleStageClear();
+        if (!this.runState.endReason && this.runState.stageIndex < TOTAL_STAGES) {
+          this.beginNextStageIntro(nowMs);
+        }
+      },
+      debugSpawnPowerUp: (id: string): void => {
+        if (!POWERUP_IDS.includes(id as PowerUpId)) return;
+        spawnPowerUp(
+          this.powerUpsGroup,
+          id as PowerUpId,
+          this.player.sprite.x,
+          this.player.sprite.y - 40,
+        );
+      },
+      debugForceRunClear: (): void => {
+        if (this.runState.endReason) return;
+        while (this.runState.stageIndex < TOTAL_STAGES && !this.runState.endReason) {
+          const stage = this.currentStage();
+          this.applyEvent({ type: 'STAGE_CLEARED', stageId: stage.id });
+          this.runState = {
+            ...this.runState,
+            calorie: Math.max(
+              0,
+              this.runState.calorie - GameBalance.scoring.caloriePerStageClearDecay,
+            ),
+          };
+          const stageNumber = this.runState.stageIndex;
+          let bonus = stageClearBonus(stageNumber, GameBalance.scoring.stageClearBonusPerStage);
+          bonus += bossNoHitBonus(stageNumber, GameBalance.scoring.bossNoHitBonusPerStage);
+          this.runState = { ...this.runState, score: this.runState.score + bonus };
+        }
+        if (!this.runState.endReason) {
+          this.runState = {
+            ...this.runState,
+            score: this.runState.score + GameBalance.scoring.runClearBonus,
+          };
+          this.applyEvent({ type: 'RUN_ENDED', reason: 'CLEAR' });
+        }
       },
     };
   }
@@ -1037,6 +1357,9 @@ export class GameScene extends Phaser.Scene {
   private handleShutdown(): void {
     this.feedback.destroy();
     this.inputSystem.destroy();
+    this.audio?.destroy();
+    this.audio = null;
+    this.clearTells();
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.time.removeAllEvents();
     this.tweens.killAll();

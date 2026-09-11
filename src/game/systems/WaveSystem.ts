@@ -47,4 +47,10 @@ export class WaveSystem {
   isCompleted(): boolean {
     return this.completed;
   }
+
+  /** E2E / debug: mark wave finished without waiting for remaining spawns. */
+  forceComplete(): void {
+    this.spawnedCount = this.wave.spawns.length;
+    this.completed = true;
+  }
 }

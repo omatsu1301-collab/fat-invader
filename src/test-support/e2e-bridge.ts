@@ -17,6 +17,9 @@ export type FatE2ERunSnapshot = {
   activePlayerProjectiles: number;
   activeEnemyProjectiles: number;
   activeEnemies?: number;
+  activePowerUps?: number;
+  phase?: string;
+  waveIndexInStage?: number;
   endReason?: 'FAT_OVER' | 'CLEAR';
   bossPhase?: string;
   bossX?: number;
@@ -69,6 +72,11 @@ export type E2EDebugHooks = {
   debugSetCombo: (combo: number) => void;
   debugSaturateVfxCaps: () => void;
   debugPlayDisplayKill: () => void;
+  debugSkipToBoss: () => void;
+  debugSkipWave: () => void;
+  debugAdvanceStage: (force?: boolean) => void;
+  debugSpawnPowerUp: (id: string) => void;
+  debugForceRunClear: () => void;
 };
 
 export type FatE2EBridge = {
@@ -84,6 +92,11 @@ export type FatE2EBridge = {
   debugSetCombo: (combo: number) => void;
   debugSaturateVfxCaps: () => void;
   debugPlayDisplayKill: () => void;
+  debugSkipToBoss: () => void;
+  debugSkipWave: () => void;
+  debugAdvanceStage: (force?: boolean) => void;
+  debugSpawnPowerUp: (id: string) => void;
+  debugForceRunClear: () => void;
 };
 
 declare global {
@@ -141,5 +154,10 @@ export function installE2EBridge(game: Phaser.Game): void {
     debugSetCombo: (combo) => getHooks()?.debugSetCombo(combo),
     debugSaturateVfxCaps: () => getHooks()?.debugSaturateVfxCaps(),
     debugPlayDisplayKill: () => getHooks()?.debugPlayDisplayKill(),
+    debugSkipToBoss: () => getHooks()?.debugSkipToBoss(),
+    debugSkipWave: () => getHooks()?.debugSkipWave(),
+    debugAdvanceStage: (force?: boolean) => getHooks()?.debugAdvanceStage(force),
+    debugSpawnPowerUp: (id: string) => getHooks()?.debugSpawnPowerUp(id),
+    debugForceRunClear: () => getHooks()?.debugForceRunClear(),
   };
 }

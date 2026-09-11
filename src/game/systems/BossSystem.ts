@@ -22,6 +22,7 @@ export function applyBossDamage(
     type: 'DAMAGE',
     amount,
     phase2HpFraction: def.phase2HpFraction,
+    rageHpFraction: def.rageHpFraction,
   });
   return {
     state: nextState,
@@ -32,5 +33,7 @@ export function applyBossDamage(
 
 export function activePhaseConfig(bossId: BossId, state: BossState) {
   const def = bosses[bossId];
-  return state.phase === 'phase2' ? def.phase2 : def.phase1;
+  if (state.phase === 'rage') return def.rage;
+  if (state.phase === 'phase2') return def.phase2;
+  return def.phase1;
 }
