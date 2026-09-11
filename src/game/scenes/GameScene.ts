@@ -1016,8 +1016,13 @@ export class GameScene extends Phaser.Scene {
         const mods = powerUpCombatMods(this.powerUpTimers, nowMs);
         const invuln = isInvulnerable(this.player, nowMs) || mods.invulnerable;
         const hit = resolveFirstPlayerHit(this.pendingPlayerHits, invuln);
-        this.pendingPlayerHits = [];
+        // When invulnerable, keep pending so a hit queued during pause is not
+        // discarded if resume lands inside the invuln window.
+        if (!invuln) {
+          this.pendingPlayerHits = [];
+        }
         if (hit) {
+          this.pendingPlayerHits = [];
           this.bossFightNoHit = false;
           const total = applyCalorie(this.runState.calorie, hit.calorie);
           applyHitFlash(this.player, nowMs);
