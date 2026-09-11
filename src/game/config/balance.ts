@@ -149,9 +149,23 @@ export const GameBalance = {
       speedPxPerSec: 0,
       size: 14,
       visualSize: 18,
+      /** Fairness: player must see tell before active beam (AC-320). */
       telegraphMs: 600,
+      /** Active hazard lifetime after tell completes. */
       beamDurationMs: 350,
+      /** Half-width of the vertical corridor (visual = collision). */
       beamHalfWidthPx: 10,
+      /** Vertical spacing between pooled beam segments. */
+      beamSegmentSpacingPx: 32,
+      /** First segment offset below the muzzle. */
+      beamSourceOffsetY: 16,
+      /**
+       * Absolute end Y for tell + hazard (LOGICAL_HEIGHT - bottomInset).
+       * Must reach the player movement band.
+       */
+      beamReachY: 760,
+      /** Player movement band Y (LOGICAL_HEIGHT * 0.86) for fairness checks. */
+      playerBandY: 726,
     },
   },
 

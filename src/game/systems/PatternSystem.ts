@@ -3,6 +3,17 @@ import { bullets, type BulletId } from '../content/bullets';
 import type { PatternId } from '../content/patterns';
 import { TextureKey } from '../entities/textures';
 import { fireProjectile, type ProjectilePayload } from '../entities/Projectile';
+import { planSodaLaserCorridor, type SodaLaserCorridorPlan } from './sodaLaser';
+
+export type PatternTellKind = 'diagonal' | 'laser' | 'cast';
+
+export type PatternTellOptions = {
+  durationMs?: number;
+  /** Absolute end Y for long-range laser tell (player band / playfield bottom). */
+  endY?: number;
+  /** Beam corridor width in px (visual must match hazard). */
+  widthPx?: number;
+};
 
 export type PatternFireContext = {
   group: Phaser.Physics.Arcade.Group;
@@ -15,7 +26,13 @@ export type PatternFireContext = {
   /** Optional telegraph callback — caller schedules delayed real fire. */
   scheduleTelegraph?: (delayMs: number, fire: () => void) => void;
   /** Spawn a visible tell line/beam preview. */
-  showTell?: (kind: 'diagonal' | 'laser' | 'cast', x: number, y: number, meta?: number) => void;
+  showTell?: (
+    kind: PatternTellKind,
+    x: number,
+    y: number,
+    meta?: number,
+    options?: PatternTellOptions,
+  ) => void;
 };
 
 export type PatternFireResult = {
@@ -68,6 +85,37 @@ function fireDown(
       baseVx: vx,
     });
   }
+}
+
+/**
+ * Stationary vertical hazard from muzzle to player band. Visual size matches
+ * Arcade body; segments expire after beamDurationMs (no slow crawl).
+ */
+function spawnSodaLaserBeam(ctx: PatternFireContext, plan: SodaLaserCorridorPlan): number {
+  let fired = 0;
+  const expiresAtMs = (ctx.group.scene?.time.now ?? 0) + plan.beamDurationMs;
+  for (const y of plan.segmentYs) {
+    const sprite = fireProjectile(
+      ctx.group,
+      textureForBullet('sodaLaser'),
+      plan.laneX,
+      y,
+      0,
+      0,
+      enemyPayload('sodaLaser'),
+    );
+    if (!sprite) break;
+    // Display stretch; body uses unscaled frame so world AABB == display size.
+    sprite.setDisplaySize(plan.widthPx, plan.segmentSpacingPx);
+    const body = sprite.body as Phaser.Physics.Arcade.Body;
+    body.setSize(sprite.frame.width, sprite.frame.height);
+    body.setOffset(0, 0);
+    sprite.setData('expiresAtMs', expiresAtMs);
+    sprite.setData('sodaLaserLaneX', plan.laneX);
+    sprite.setData('sodaLaserEndY', plan.endY);
+    fired += 1;
+  }
+  return fired;
 }
 
 function spreadFan(
@@ -174,17 +222,18 @@ export function firePattern(ctx: PatternFireContext): PatternFireResult {
       return { fired: 0, deferred: true };
     }
     case 'sodaLaser': {
-      const tellMs = bullets.sodaLaser.telegraphMs ?? 600;
-      ctx.showTell?.('laser', ctx.x, ctx.y);
+      // Lane locked at telegraph start — never re-aim at player after tell.
+      const plan = planSodaLaserCorridor(ctx.x, ctx.y);
+      ctx.showTell?.('laser', plan.laneX, plan.sourceY, undefined, {
+        durationMs: plan.telegraphMs,
+        endY: plan.endY,
+        widthPx: plan.widthPx,
+      });
       if (!schedule) {
-        fireDown(ctx, 'sodaLaser', ctx.x, ctx.y + 40, 0, 40);
-        return { fired: 1, deferred: false };
+        return { fired: spawnSodaLaserBeam(ctx, plan), deferred: false };
       }
-      schedule(tellMs, () => {
-        // Beam represented as a tall slow projectile corridor (placeholder).
-        for (let i = 0; i < 6; i += 1) {
-          fireDown(ctx, 'sodaLaser', ctx.x, ctx.y + 30 + i * 36, 0, 80);
-        }
+      schedule(plan.telegraphMs, () => {
+        spawnSodaLaserBeam(ctx, plan);
       });
       return { fired: 0, deferred: true };
     }

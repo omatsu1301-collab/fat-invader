@@ -37,7 +37,8 @@ export function projectileBodyForBulletId(bulletId: string): {
     return { width: 18, height: 18, offsetX: 2, offsetY: 2 };
   }
   if (bulletId === 'sodaLaser') {
-    return { width: 14, height: 14, offsetX: 2, offsetY: 2 };
+    // Default segment; PatternSystem overwrites to match beam width × spacing.
+    return { width: 20, height: 32, offsetX: 0, offsetY: 0 };
   }
   return { width: 12, height: 12, offsetX: 0, offsetY: 0 };
 }
@@ -54,6 +55,19 @@ export function updateSineProjectiles(group: Phaser.Physics.Arcade.Group, nowMs:
     const t = nowMs - sine.bornAtMs;
     const offset = Math.sin((t / sine.periodMs) * Math.PI * 2) * sine.amplitude;
     sprite.x = sine.originX + offset + sine.baseVx * (t / 1000);
+  }
+}
+
+/** Deactivates timed hazards such as soda-laser beam segments. */
+export function updateExpiredProjectiles(group: Phaser.Physics.Arcade.Group, nowMs: number): void {
+  for (const child of group.children) {
+    const sprite = child as Phaser.Physics.Arcade.Sprite;
+    if (!sprite.active) continue;
+    const expiresAtMs = sprite.getData('expiresAtMs') as number | undefined;
+    if (expiresAtMs === undefined) continue;
+    if (nowMs >= expiresAtMs) {
+      deactivateProjectile(sprite);
+    }
   }
 }
 
@@ -77,6 +91,11 @@ export function fireProjectile(
   sprite.setActive(true);
   sprite.setVisible(true);
   sprite.setPosition(x, y);
+  // Pool reuse: clear soda-laser stretch / expiry so other bullets stay correct.
+  sprite.setScale(1);
+  sprite.setData('expiresAtMs', undefined);
+  sprite.setData('sodaLaserLaneX', undefined);
+  sprite.setData('sodaLaserEndY', undefined);
   const body = sprite.body as Phaser.Physics.Arcade.Body;
   body.enable = true;
   body.reset(x, y);

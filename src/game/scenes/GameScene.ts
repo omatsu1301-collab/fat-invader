@@ -26,7 +26,7 @@ import type { PendingEnemyHit, PendingPlayerHit } from '../systems/CombatSystem'
 import type { ProjectilePayload } from '../entities/Projectile';
 import { WaveSystem } from '../systems/WaveSystem';
 import { activePhaseConfig, applyBossDamage, completeBossIntro } from '../systems/BossSystem';
-import { firePattern } from '../systems/PatternSystem';
+import { firePattern, type PatternTellKind, type PatternTellOptions } from '../systems/PatternSystem';
 import { FeedbackSystem } from '../systems/FeedbackSystem';
 import { DisplayDepth } from '../config/display';
 import { DEFAULT_FEEL_SETTINGS, bossDeathBeatAt, type FeelSettings } from '../domain/feel';
@@ -47,6 +47,7 @@ import {
   deactivateProjectile,
   despawnOffscreen,
   fireProjectile,
+  updateExpiredProjectiles,
   updateSineProjectiles,
 } from '../entities/Projectile';
 import {
@@ -447,6 +448,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     updateSineProjectiles(this.enemyProjectiles, nowMs);
+    updateExpiredProjectiles(this.enemyProjectiles, nowMs);
 
     switch (this.phase) {
       case 'stageIntro':
@@ -598,7 +600,7 @@ export class GameScene extends Phaser.Scene {
       scheduleTelegraph: (delayMs, fire) => {
         this.scheduleTelegraphFire(delayMs, fire, () => sprite.active && this.phase === 'wave');
       },
-      showTell: (kind, x, y, meta) => this.showTellGraphics(kind, x, y, meta),
+      showTell: (kind, x, y, meta, options) => this.showTellGraphics(kind, x, y, meta, options),
     });
     runtime.shotIndex += 1;
     const delay = rollEnemyFireDelayMs(this.gameplayRandom, def.fireRateMs, def.fireIntervalJitterMs);
@@ -619,16 +621,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showTellGraphics(
-    kind: 'diagonal' | 'laser' | 'cast',
+    kind: PatternTellKind,
     x: number,
     y: number,
     meta?: number,
+    options?: PatternTellOptions,
   ): void {
     let obj: Phaser.GameObjects.GameObject;
+    let durationMs = options?.durationMs ?? 650;
     if (kind === 'laser') {
+      const endY = options?.endY ?? PLAYFIELD_BOTTOM;
+      const widthPx = options?.widthPx ?? GameBalance.bullet.sodaLaser.beamHalfWidthPx * 2;
+      const height = Math.max(8, endY - y);
+      const midY = y + height / 2;
       obj = this.add
-        .rectangle(x, y + 120, 10, 240, 0xff6b6b, 0.35)
+        .rectangle(x, midY, widthPx, height, 0xff6b6b, 0.35)
         .setDepth(DisplayDepth.caption - 1);
+      durationMs = options?.durationMs ?? GameBalance.bullet.sodaLaser.telegraphMs;
     } else if (kind === 'diagonal') {
       const dir = meta ?? 1;
       const line = this.add.graphics().setDepth(DisplayDepth.caption - 1);
@@ -644,7 +653,7 @@ export class GameScene extends Phaser.Scene {
         .setDepth(DisplayDepth.caption - 1);
     }
     this.activeTells.push(obj);
-    this.time.delayedCall(650, () => {
+    this.time.delayedCall(durationMs, () => {
       obj.destroy();
       this.activeTells = this.activeTells.filter((t) => t !== obj);
     });
@@ -733,7 +742,7 @@ export class GameScene extends Phaser.Scene {
           () => Boolean(this.boss) && this.boss!.sprite.active && this.phase === 'bossActive',
         );
       },
-      showTell: (kind, x, y, meta) => this.showTellGraphics(kind, x, y, meta),
+      showTell: (kind, x, y, meta, options) => this.showTellGraphics(kind, x, y, meta, options),
     });
     this.bossShotIndex += 1;
   }
