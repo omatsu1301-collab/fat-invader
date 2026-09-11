@@ -149,6 +149,8 @@
 
 Human Gate 2 (2026-09-08, follow-up 2026-09-09): **CONDITIONAL PASS / 修正付き採用（正式PASSではない）。** AC-230 / AC-231 は PASS「ちょうどいい」（通常敵kill feelは非変更）。Boss death は Human PASS「めっちゃいいね」（3-beat非変更）。FAT OVER は pose+caption を約1.6秒から約2.6秒へ延長後、Human PASS「約2.6秒を採用」（`fatOverHoldMs: 2600`、非変更）。AC-232 / AC-233 はplaceholderのため保留し、最終ドット素材導入後に再判定する。
 
+Full Graybox Human Gate (2026-09-11): Stage 1→2→3 実プレイ PASS。攻撃パターン難易度は採用（弱めない）。FAT OVER は pose 余韻中に caption が重なる問題 → `fatOverCaptionDelayMs: 1100` で pose-only → caption → Result に修正（`fatOverHoldMs: 2600` は維持）。
+
 ## 7. Milestone C Acceptance — Content (Full Graybox)
 
 **Status (feat/full-graybox-v01 Draft):** automated evidence in progress / Human taste PENDING.

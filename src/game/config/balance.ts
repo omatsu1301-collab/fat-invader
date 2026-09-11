@@ -269,8 +269,13 @@ export const GameBalance = {
     muzzleParticlesReduced: 1,
     comboCalloutDurationMs: 380,
     playerHitVignetteMs: 90,
-    /** Human Gate 2 follow-up: squash pose + caption hold before Result. */
+    /**
+     * Human Gate 2 follow-up: total FAT OVER hold before Result (locked).
+     * Caption is delayed so pose reads first (Full Graybox Human Gate 2026-09-11).
+     */
     fatOverHoldMs: 2600,
+    /** Pose-only beat inside fatOverHoldMs; caption appears after this delay. */
+    fatOverCaptionDelayMs: 1100,
     /** Unchanged STAGE CLEAR → Result hold. */
     clearHoldMs: 1600,
     /**

@@ -1056,9 +1056,15 @@ export class GameScene extends Phaser.Scene {
   private onRunEnded(reason: RunEndReason): void {
     this.phase = 'ended';
     if (reason === 'FAT_OVER') {
+      // Human Gate (2026-09-11): show pose first with no caption, then caption.
       applyFatOverPose(this.player);
       this.fatOverPoseApplied = true;
-      this.showCaption('FAT OVER\n満腹につき、いったん帰還。');
+      this.hideCaption();
+      this.time.delayedCall(GameBalance.feel.fatOverCaptionDelayMs, () => {
+        if (this.phase !== 'ended' || this.runState.endReason !== 'FAT_OVER') return;
+        this.showCaption('FAT OVER\n満腹につき、いったん帰還。');
+        publishRunSnapshot(this.game, this.buildSnapshot());
+      });
     }
 
     const saveData = loadSaveData(this.storage);
@@ -1135,6 +1141,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private buildSnapshot(): FatE2ERunSnapshot {
+    const nowMs = this.clock.nowMs();
+    const mods = powerUpCombatMods(this.powerUpTimers, nowMs);
     return {
       score: this.runState.score,
       combo: this.runState.combo,
@@ -1155,10 +1163,18 @@ export class GameScene extends Phaser.Scene {
       enemyFormationOffsets: this.collectEnemyFormationOffsets(),
       phase: this.phase,
       waveIndexInStage: this.waveIndexInStage,
+      powerUpMods: {
+        shotDamage: mods.shotDamage,
+        fireIntervalMs: mods.fireIntervalMs,
+        moveSpeedMultiplier: mods.moveSpeedMultiplier,
+        tripleShot: mods.tripleShot,
+        invulnerable: mods.invulnerable,
+      },
       ...this.feelSnapshot(),
       ...(this.runState.endReason ? { endReason: this.runState.endReason } : {}),
       ...(this.boss
         ? {
+            bossId: this.boss.bossId,
             bossPhase: this.boss.state.phase,
             bossX: this.boss.sprite.x,
             bossHp: this.boss.state.hp,
@@ -1303,6 +1319,13 @@ export class GameScene extends Phaser.Scene {
           };
           this.applyEvent({ type: 'RUN_ENDED', reason: 'CLEAR' });
         }
+      },
+      debugApplyBossDamage: (amount: number): void => {
+        if (!this.boss || amount <= 0) return;
+        if (this.boss.state.phase === 'intro' || this.boss.state.phase === 'dead') return;
+        this.pendingBossHits.push(amount);
+        this.resolveCombat(this.clock.nowMs());
+        publishRunSnapshot(this.game, this.buildSnapshot());
       },
     };
   }
