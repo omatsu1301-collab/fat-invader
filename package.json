@@ -14,7 +14,9 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "assets:pixel": "node scripts/process-pixel-assets.mjs",
+    "assets:verify": "node scripts/verify-pixel-assets.mjs"
   },
   "repository": {
     "type": "git",
@@ -38,6 +40,7 @@
     "jsdom": "^29.1.1",
     "oxlint": "^1.82.0",
     "prettier": "^3.9.6",
+    "sharp": "^0.34.4",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
     "vitest": "^5.0.0"

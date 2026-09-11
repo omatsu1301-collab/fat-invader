@@ -1,23 +1,28 @@
 # FATインベーダー — Pixel Asset Specification
 
 **Document ID:** FI-10
-**Version:** 1.2 (Style North Star document Human-approved)
-**Status:** Style North Star 文書 Human APPROVED（画像未生成・5 still Human Gate待ち）
+**Version:** 1.3 (North Star 5 still concepts Human APPROVED; processed-runtime Gate pending)
+**Status:** 5 still concepts Human APPROVED（2026-09-10）。processed / public runtime 統合済み。runtime visual Human Gate 待ち（AC-232 / AC-233 PENDING）
 **Depends on:** FI-01, FI-02, FI-04, FI-05, FI-07, FI-08, FI-09
 **Last updated:** 2026-09-10
-**Base main SHA:** `7e054d91e4ec2d7639df49dd974e784cd8de90bb`
+**Base main SHA (spec origin):** `7e054d91e4ec2d7639df49dd974e784cd8de90bb`
+**Integration branch base:** `e70bf11a71937103333585c6abde90e8e9d30be8`
 
 ## 0. Purpose and non-goals
 
-この文書の目的は、AI画像生成へ渡せる**実装可能な Pixel Asset Specification** と **Style North Star** の構成を確定することである。
+この文書は Pixel Asset Specification / Style North Star と、Human 採用済み 5 still の決定論的加工・統合契約を定義する。
 
-今回の成果物は文書だけである。次は行わない。
+本サイクルで行うこと:
 
-- 画像生成、sprite / PNG / atlas の追加
-- ゲームコード、GameBalance、演出タイミング、hitbox の変更
-- PR #4 で確定した Game Feel の変更（通常撃破、Boss 3-beat、FAT OVER 約2.6秒）
-- 5 still Human Gate 承認前の follow-on素材・animation・Stage 2/3素材の量産
-- merge / Deploy
+- raw → canonical master → processed runtime → public runtime
+- Boot preload、manifest、Player light tint 修正、player bullet body 明示
+- AC-232 / AC-233 用の証拠提示（Human PASS は宣言しない）
+
+行わないこと:
+
+- 新規 AI 画像生成、animation、Player 残り 3 tier
+- Game Feel / hitbox 比率 / Boss 3-beat / FAT OVER 2.6s の変更
+- Ready / merge / Deploy
 
 読み取り対象の実ファイル名（依頼文の別名との対応）:
 
@@ -92,7 +97,7 @@ Domain（`calorie.ts` / FI-02 §5.2 / AC-116）:
 | --- | --- | --- | --- | --- |
 | 通常敵 | `fryScout` | HP 1、score 100、編隊 2×4=8 | `fry` | DONUT DRIFTER / SODA TANK は未実装 |
 | Boss | `kingBurgerMini` | HP 30、2 phase（50% で 1発→3-way） | `fry` | FI-02 の KING BURGER HP 45 / 3 phase より簡易 |
-| Player 弾 | `playerShot` | 速度 680、damage 1、間隔 180ms | — | METABOLIC SHOT |
+| Player 弾 | `playerShot` | 速度 680、damage 1、間隔 180ms | — | 見た目はくしゃ紙弾。内部 weaponId `metabolicShot` は互換残置 |
 | 食べ物弾 | `fry` | CALORIE 10、速度 190 | — | Milestone B は FRY 1種のまま（FI-09 §3-3） |
 
 Wave: `waves.stage1Wave1` のみ。Boss 警告 900ms → intro 1000ms → active → 3-beat death。Power-up / 背景パララックス / BGM / SE は未実装。
@@ -200,83 +205,63 @@ Sprite 内部は次のコアパレットと、各資産の許容拡張（§5）�
 
 色を落としたグレースケール / 1bit でも、Player 弾と食べ物弾が区別できること。
 
-| | Player bullet (`tex-bullet-player`) | Food bullet (`tex-bullet-fry`) |
+| | Player bullet (`tex-bullet-player`) くしゃ紙弾 | Food bullet (`tex-bullet-fry`) 黄金フライ弾 |
 | --- | --- | --- |
-| 基本形 | 細い縦針。先端が尖る | 短いポテト 2〜3 本の束、または横幅 ≧ 高さの食品塊 |
-| アスペクト | 高さ ≫ 幅（幅 4〜6px、高さ 14〜16px / canvas 6×16） | 全体の外接形状は 1:1 に近い（canvas 14×14）。opaque footprint 概ね 10×10 以上 |
-| 輪郭 | 細く鋭い。外接矩形に隙間が多い | 太い dark outline が全周。外接矩形をほぼ埋める |
-| 内部 | cyan コア + 白に近い先端 1〜2px | 束ねたポテトの帯・揚げ目。ハイライトは小さい |
-| 禁止 | 丸い塊、食べ物の凹凸、太い outline | 縦針、レーザー、単独の長いポテト、縦長スラッシュ |
+| 基本形 | 不規則でギザギザしたクリーム紙の塊（丸めた健診結果） | 密に揃えた短い黄金フライの束 |
+| アスペクト | canvas 12×16。opaque は概ね 12×12 を縦中央配置 | canvas 14×14。opaque 概ね 12×12、外接は 1:1 に近い |
+| 輪郭 | 紙の折れ・突起。細長い針や巻物にしない | 太い dark outline。食品塊 |
+| 内部 | `#FFF0D2` / muted の紙質。文字は runtime で読ませない | amber / potato / coral の揚げ目 |
+| 禁止 | スクロール、タバコ、石、ポップコーン、エネルギー球、食品化 | 縦針、レーザー、単独の長いポテト |
 
-判定テスト（実装前の加工チェック）:
-
-1. スプライトを `#21102F` 一色に塗り、390×844 の Void 上に並べる。
-2. Player 弾と FRY 弾を 32px 以上離して配置。
-3. 0.3 秒以内にどちらが味方弾か言えること。
-
-VFX particle（8×8 未満、半透明、hitbox なし）は敵弾より小さく、outline を持たない。
+判定テスト: 0.3 秒以内にどちらが味方弾か言えること。証拠は `docs/evidence/ac213-bullet-silhouette-*.png`。
 
 ## 5. Style North Star
 
-量産前に次の 5 still だけを生成・加工し、Human が「この絵柄で進めてよい」と承認する。5 枚以外を先に作らない。
+Human が 2026-09-10 に採用した 5 still concepts（画像概念 PASS）:
 
-承認対象:
+1. 三日坊主号 — `pixel.player.sannichibouzu.idle`
+2. FRY SCOUT — `pixel.enemy.fryScout.idle`
+3. くしゃ紙弾 — `pixel.bullet.playerCrumpledCheckup`
+4. 黄金フライ弾 — `pixel.bullet.goldenFry`
+5. KING BURGER — `pixel.boss.kingBurger.idle`
 
-1. Player Light idle
-2. FRY SCOUT idle
-3. FRY bullet
-4. Player bullet（対比用。AC-213）
-5. KING BURGER idle
+### Rejected concepts — do not restore
 
-### 5.1 Player Light — `pixel.player.light.idle`
+- futuristic cyan astronaut Player / Player Light astronaut
+- METABOLIC SHOT energy bullet（見た目）。内部 event id `metabolicShot` は互換のため残置可
+- rolled-paper 健診ロール
 
-- **読み:** 丸みのある人型宇宙戦士。性別・人種を固定しすぎない。顔は目 2 点 + 口。胸の前に小型トレーニング砲。
-- **色:** 装甲 `#53F6FF`、outline `#21102F`、ハイライト `#FFF0D2`。
-- **ポーズ:** 正面向きやや上。両足は揃えても可。砲口は上。
-- **可視 footprint:** canvas 40×40 のうちおおよそ 32×34。上下左右に 2〜4px の透明余白。
-- **維持（全 tier 共通、後続生成時）:** 同じ顔間隔、同じ砲、同じ cyan 家系。Tier 差は胴の幅と輪郭の誇張だけ。
-- **禁止:** 筋肉の写実、ブランドロゴ、痩せ称賛の encircling 計測 UI、汚れた衣類。Overflowing / FAT OVER でも武器を落とさない。
-- **AI prompt kernel (EN):** `tiny 40x40 pixel art astronaut with round cute silhouette, two-dot eyes, small training cannon pointing up, cyan armor #53F6FF, 1px #21102F outline, top-left highlight, transparent background, no anti-alias, no brand logos, dignified not skinny-worship`
+ユーモアの標的は、三日坊主の過剰な決意と即席装備であり、身体そのものではない。Player は有能・愛嬌・尊厳を保つ。
 
-後続 tier（North Star 承認後）:
+### 5.1 三日坊主号 — `pixel.player.sannichibouzu.idle`
 
-| Tier | Silhouette | 禁止 |
-| --- | --- | --- |
-| Rounded | 胴 +10〜15% | 顔を小さくしない |
-| Heavy | 胴 +25〜35%、まだ機敏 | 汗・汚れ・破れ |
-| Overflowing | 最大誇張。愛嬌と装備は維持 | 「敗北した体」記号、伏せた目 |
+- **読み:** 太鼓腹の会社員が自作エアロバイク車両に乗り、決意の表情。赤ネクタイ鉢巻、白シャツ、大きなフライホイール、書類発射器。
+- **canvas:** runtime 40×40 / master 160×160。可視最大 38×38。
+- **hitbox:** 24×28 @ (8,6) 不変。
+- **色:** cyan 装甲を使わない。cream / potato / patty / coral / muted / plum。
+- **tier:** 本 PR は 1 still。`light` は clearTint。他 tier は暫定 tint。残り 3 tier sprite は out of scope。
 
 ### 5.2 FRY SCOUT — `pixel.enemy.fryScout.idle`
 
-- **読み:** 赤い紙容器に入ったフライの斥候。ポテトの槍、細い脚。編隊の基本兵。
-- **色:** 容器 `#C43B3B`、ポテト `#FFB33D` / `#FFD27A`、脚 `#21102F`。
-- **ポーズ:** 容器が本体。脚は 2 本、2〜3px。槍は下向き（Player 方向）または斜め下。
-- **可視 footprint:** 28×28 のうちおおよそ 24×24。
-- **禁止:** マクドナルド風アーチ、英語 wordmark、油汚れを汚物として描くこと。腐敗色（緑黒）禁止。
+- 赤い紙容器、ポテト、細い脚。runtime 28×28。hitbox 現行 85%。
 
-### 5.3 FRY bullet — `pixel.bullet.fry`
+### 5.3 くしゃ紙弾 — `pixel.bullet.playerCrumpledCheckup`
 
-- **読み:** 避けたいのにおいしそうな短いポテト 2〜3 本の束、または横幅 ≧ 高さの食品塊。危険物なので coral の外輪を 1px 持ってよいが、主色は amber。
-- **形:** 束ねた短いフライ。両端が丸い。全体シルエットは 1:1 に近づける。単独の長い 1 本や針形にしない。
-- **canvas:** 14×14。opaque footprint は概ね 10×10 以上。
-- **判別:** グレースケールおよび 1bit でも Player bullet（細い縦針）と即時判別できること。
-- **禁止:** 縦針、レーザー、単独の長いポテト、抽象光球のまま（現行 placeholder からの脱却が AC-233 の対象）、cyan。
+Canonical copy（UI 未配線。`docs/content/flavor-copy-north-star.md`）:
 
-### 5.4 Player bullet — `pixel.bullet.playerShot`
+> 「まぁ、次には良くなってる」と丸めてきた、歴代の健診結果。三日坊主号の主砲弾。
 
-- **読み:** METABOLIC SHOT。cyan コア + 先端の明るい 1〜2px。細い縦針。
-- **形:** 幅 4〜6px、高さ 14〜16px のカプセルまたは尖塔。食べ物の凹凸なし。
-- **禁止:** 丸、束ねた食品塊、アウトライン過多で FRY と相似になること。
+- **形:** 不規則な紙の塊。巻物・エネルギー弾にしない。
+- **canvas:** 12×16 / master 48×64。
+- **body:** **6×16 @ (3,0)**（見た目と独立）。
+
+### 5.4 黄金フライ弾 — `pixel.bullet.goldenFry`
+
+- 密な黄金フライ束。14×14 canvas。body 14×14。
 
 ### 5.5 KING BURGER — `pixel.boss.kingBurger.idle`
 
-- **読み:** 王冠ピクルスを載せた多層バーガーの王。尊大で愛嬌がある。厚いシルエット。
-- **層（下から）:** バンズ、パティ、チーズまたはピックル、バンズ、王冠。96×72 で 4〜5 層が読めること。
-- **色:** バンズ `#FFB33D` / `#FFF0D2`、パティ `#6B3A22`、ピックル `#7CB342`。Sweets pink は主色にしない（現行 placeholder の pink は捨てる）。
-- **ポーズ:** 正面、わずかに上から。目またはチーズの「視線」が下の Player を見る。
-- **可視 footprint:** 幅 80〜88、高さ 58〜66 を目安。画面幅 390 の約 22〜25%（FI-04 の 35〜42% は将来サイズ移行時）。
-- **死亡アニメ:** このシートに焼かない。3-beat は既存 VFX のまま。
-- **禁止:** 実在チェーンのロゴ・包装、腐ったパティ、昆虫。
+- 王冠ピクルスの多層バーガー。96×72。key `tex-boss-king-burger-mini` リネームしない。death は既存 3-beat。
 
 ## 6. Asset catalog
 
@@ -291,15 +276,13 @@ VFX particle（8×8 未満、半透明、hitbox なし）は敵弾より小さ�
 
 | ID | Texture key | 用途 | Runtime | Master | NS frames | Later frames | Pivot | Hitbox (immutable this cycle) |
 | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- |
-| `pixel.player.light.idle` | `tex-player` | Player Light | 40×40 | 160×160 | 1 | idle 4 / move 2–4 / shoot 2 / hit 2 | center | 24×28 @ offset (8,6) |
-| `pixel.enemy.fryScout.idle` | `tex-enemy-fry-scout` | Stage 1 雑魚 | 28×28 | 112×112 | 1 | idle 4 / attack tell 2–4 | center | 23.8×23.8 @ (2.1,2.1) |
-| `pixel.boss.kingBurger.idle` | `tex-boss-king-burger-mini` | Stage 1 Boss | 96×72 | 384×288 | 1 | idle 4–8 / tell 4+ / phase 6+ | center | 81.6×61.2 @ (7.2,5.4) |
-| `pixel.bullet.playerShot` | `tex-bullet-player` | 味方弾 | 6×16 | 24×64 | 1 | 1（回転不要） | center | 6×16 full texture |
-| `pixel.bullet.fry` | `tex-bullet-fry` | 敵弾 FRY | 14×14 | 56×56 | 1 | 1〜2（任意の 90° 未満ゆらぎ） | center | 14×14 full texture |
+| `pixel.player.sannichibouzu.idle` | `tex-player` | 三日坊主号 | 40×40 | 160×160 | 1 | out of scope | center | 24×28 @ offset (8,6) |
+| `pixel.enemy.fryScout.idle` | `tex-enemy-fry-scout` | Stage 1 雑魚 | 28×28 | 112×112 | 1 | out of scope | center | 23.8×23.8 @ (2.1,2.1) |
+| `pixel.boss.kingBurger.idle` | `tex-boss-king-burger-mini` | Stage 1 Boss | 96×72 | 384×288 | 1 | out of scope | center | 81.6×61.2 @ (7.2,5.4) |
+| `pixel.bullet.playerCrumpledCheckup` | `tex-bullet-player` | くしゃ紙弾 | 12×16 | 48×64 | 1 | out of scope | center | **6×16 @ (3,0)** |
+| `pixel.bullet.goldenFry` | `tex-bullet-fry` | 黄金フライ弾 | 14×14 | 56×56 | 1 | out of scope | center | 14×14 full texture |
 
-key 名 `tex-boss-king-burger-mini` はコード互換のため**リネームしない**（§11 確定）。
-
-列の補足: **Master size** は canonical master（runtime × 4）。Raw source の寸法は固定しない。
+key 名 `tex-boss-king-burger-mini` はリネームしない。animation 量産はしない。
 
 ### 6.2 Same-cycle follow-on (after North Star stills PASS, still no mass Stage 2/3)
 
@@ -629,8 +612,8 @@ Gate パッケージは FI-04 §15 に寄せ、最低でも Mobile 通常戦闘�
 | `tex-bullet-player` | `GameScene.firePlayerShot` | 同上 | 速度 680、間隔 180、body 6×16 |
 | `tex-bullet-fry` | `updateEnemyFire`, `bossFire` | 同上 | 速度 190、CAL 10、body 14×14 |
 | VFX keys | `FeedbackSystem` | 変更しない既定 | flash / particle 数 / shake |
-| `asset-manifest.ts` | 未存在 | 新規追加 | domain の score/calorie 式 |
-| BootScene | 空の start Title | preload 追加 | Production への E2E bridge |
+| `asset-manifest.ts` | `src/game/content/asset-manifest.ts` | North Star 5 件 | domain の score/calorie 式 |
+| BootScene | `preload()` loads BASE_URL assets | fallback placeholders if key missing | Production への E2E bridge |
 
 ## 14. Human Gate status
 
@@ -638,31 +621,35 @@ Gate パッケージは FI-04 §15 に寄せ、最低でも Mobile 通常戦闘�
 
 | Gate | 状態 | 範囲 |
 | --- | --- | --- |
-| FI-10 文書 Gate | **PASS（2026-09-10）** | Style North Star の制作規則・pipeline・技術決定を正として採用 |
-| 5 still Visual Gate | **PENDING** | 生成後に絵柄・可読性・食欲・風刺境界を判断 |
+| FI-10 文書 Gate | **PASS（2026-09-10）** | Style North Star 制作規則 |
+| 5 still concept Gate | **PASS（2026-09-10）** | 三日坊主号 / FRY SCOUT / くしゃ紙弾 / 黄金フライ弾 / KING BURGER |
+| processed-runtime visual Gate | **PENDING** | 実プレイ可読性・AC-213/232/233 |
 
-次に Human が判断するのは、生成後の 5 still（Player Light / FRY SCOUT / FRY bullet / Player bullet / KING BURGER）のみ。
+Human が今判断すること:
 
-BGM/SE 権利（FI-09 §3-2）は本仕様の対象外。音源方針は Sound mix 工程で別途。
+1. runtime での三日坊主号の可読性と愛嬌
+2. くしゃ紙弾と黄金フライ弾の即時区別
+3. KING BURGER / FRY の食欲
+4. VFX が弾を隠していないか（AC-232）
+5. 食品 art が危険かつおいしそうか（AC-233）
+
+AC-232 / AC-233 は Human 評価まで PENDING。
 
 ## 15. Independent audit of this document
 
 | Severity | Finding | Disposition |
 | --- | --- | --- |
-| — | 画像・コード・Feel 数値をこの PR で変えていない | PASS 条件 |
-| Major 回避 | raw source と canonical master を分離 | §8 / §9 |
-| Major 回避 | FRY 弾を縦針にしない（束 / 1:1 塊） | §4 / §5.3 |
-| Major 回避 | Boss death / FAT OVER をアニメ枚数で上書きしない | §2, §5.5, §6.2, §11 |
-| Minor | `bullet.fry.size = 12` と texture 14 の不一致 | 記録のみ。hitbox は 14 で確定 |
-| Minor | AC-117 の専用 integration test が薄い | コード非変更のため本 PR では触らない |
-
-Critical / Major の未処理なし。FI-10 文書 Gate は Human PASS。残る Human Gate は生成後の 5 still Visual Gate のみ。
-
+| — | Game Feel / combat numbers 非変更 | PASS 条件 |
+| Major 回避 | raw / master / processed / public 分離 | §8 |
+| Major 回避 | playerShot body 6×16 @ (3,0) を視覚 12×16 から独立 | §5.3 / Projectile |
+| Major 回避 | light tier clearTint（cyan wash 防止） | Player.ts |
+| Minor | 40×40 ではバイク細部が潰れる場合あり | known limitation。再デザインしない |
+| Minor | 内部 `metabolicShot` id 残置 | 互換。player-facing ではない |
 
 ## 16. Human adoption record
 
 - **Date:** 2026-09-10
-- **Decision:** PASS「採用」
-- **Approved:** FI-10をStyle North Star文書の正とする。4段階pipeline、silhouette規則、技術決定、manifest schema、AC-232 / AC-233証拠計画。
-- **Not yet approved:** 画像そのもの、5 stillの絵柄・可読性・食欲・風刺境界、ゲーム内統合、AC-232 / AC-233。
-- **Next:** North Star 5 stillだけを生成し、Visual Gateへ提示する。量産・実装はまだ行わない。
+- **Concept decision:** PASS — 5 still concepts.
+- **Rejected forever (this arc):** cyan astronaut、METABOLIC SHOT energy visual、健診ロール。
+- **Integration:** deterministic process + Boot preload shipped in Draft PR; runtime Human Gate pending.
+- **Canonical copy:** `docs/content/flavor-copy-north-star.md`

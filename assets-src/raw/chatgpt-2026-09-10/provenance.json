@@ -1,0 +1,338 @@
+{
+  "batch": "chatgpt-2026-09-10",
+  "generator": "ChatGPT image generation",
+  "generatedOn": "2026-09-10",
+  "termsUrl": "https://openai.com/policies/row-terms-of-use/",
+  "termsEffectiveOn": "2026-01-01",
+  "termsCheckedOn": "2026-09-10",
+  "similarityRiskReviewed": true,
+  "notes": "OpenAI relationship: user owns Output. Output may be non-unique. Not legal advice. Human reviewed third-party/brand similarity.",
+  "assets": [
+    {
+      "id": "pixel.player.sannichibouzu.idle",
+      "textureKey": "tex-player",
+      "rawSourcePath": "assets-src/raw/chatgpt-2026-09-10/player_sannichibouzu.png",
+      "rawSourceWidth": 1254,
+      "rawSourceHeight": 1254,
+      "rawSha256": "e91e4d34361deeae54909576ade7eeff519df701edd072d54d3a252ecd921d27",
+      "masterPath": "assets-src/masters/player/player_sannichibouzu_idle.png",
+      "processedPath": "assets-src/processed/player/player_sannichibouzu_idle.png",
+      "runtimePath": "assets/sprites/player/player_sannichibouzu.png",
+      "publicPath": "public/assets/sprites/player/player_sannichibouzu.png",
+      "runtimeWidth": 40,
+      "runtimeHeight": 40,
+      "masterWidth": 160,
+      "masterHeight": 160,
+      "paletteUsed": [
+        "#21102F",
+        "#6B3A22",
+        "#7CB342",
+        "#9D93B5",
+        "#C43B3B",
+        "#FF4F64",
+        "#FF71C8",
+        "#FFB33D",
+        "#FFD27A",
+        "#FFF0D2"
+      ],
+      "opaquePixelCount": 706,
+      "processingHistory": [
+        {
+          "action": "ingest-raw",
+          "notes": "byte-for-byte handoff copy verified by SHA-256"
+        },
+        {
+          "action": "index-palette",
+          "notes": "nearest FI-10 closed palette; alpha binarize 0/255"
+        },
+        {
+          "action": "defringe",
+          "notes": "transparent RGB cleared to 0"
+        },
+        {
+          "action": "crop",
+          "notes": "opaque bbox 781x1009"
+        },
+        {
+          "action": "nearest-to-master",
+          "notes": "fit 29x38 into runtime 40x40; upscale ×4 to master"
+        },
+        {
+          "action": "nearest-downscale",
+          "notes": "runtime is exact every-4th-pixel of master"
+        },
+        {
+          "action": "pivot-pad",
+          "notes": "center origin 0.5 on transparent canvas"
+        }
+      ],
+      "subject": "三日坊主号 — pot-bellied office worker on homemade exercise-bike vehicle",
+      "humanDecision": "PASS 2026-09-10",
+      "generator": "ChatGPT image generation",
+      "generatedOn": "2026-09-10",
+      "termsUrl": "https://openai.com/policies/row-terms-of-use/",
+      "termsEffectiveOn": "2026-01-01",
+      "termsCheckedOn": "2026-09-10",
+      "similarityRiskReviewed": true
+    },
+    {
+      "id": "pixel.enemy.fryScout.idle",
+      "textureKey": "tex-enemy-fry-scout",
+      "rawSourcePath": "assets-src/raw/chatgpt-2026-09-10/enemy_fry_scout.png",
+      "rawSourceWidth": 1254,
+      "rawSourceHeight": 1254,
+      "rawSha256": "929d615974dcdc76d0955b006787521c65786cca8331c1d5c93b143a77cb5885",
+      "masterPath": "assets-src/masters/enemies/enemy_fry_scout_idle.png",
+      "processedPath": "assets-src/processed/enemies/enemy_fry_scout_idle.png",
+      "runtimePath": "assets/sprites/enemies/fry_scout.png",
+      "publicPath": "public/assets/sprites/enemies/fry_scout.png",
+      "runtimeWidth": 28,
+      "runtimeHeight": 28,
+      "masterWidth": 112,
+      "masterHeight": 112,
+      "paletteUsed": [
+        "#21102F",
+        "#6B3A22",
+        "#9D93B5",
+        "#C43B3B",
+        "#FF4F64",
+        "#FF71C8",
+        "#FFB33D",
+        "#FFD27A",
+        "#FFF0D2"
+      ],
+      "opaquePixelCount": 252,
+      "processingHistory": [
+        {
+          "action": "ingest-raw",
+          "notes": "byte-for-byte handoff copy verified by SHA-256"
+        },
+        {
+          "action": "index-palette",
+          "notes": "nearest FI-10 closed palette; alpha binarize 0/255"
+        },
+        {
+          "action": "defringe",
+          "notes": "transparent RGB cleared to 0"
+        },
+        {
+          "action": "crop",
+          "notes": "opaque bbox 676x935"
+        },
+        {
+          "action": "nearest-to-master",
+          "notes": "fit 17x24 into runtime 28x28; upscale ×4 to master"
+        },
+        {
+          "action": "nearest-downscale",
+          "notes": "runtime is exact every-4th-pixel of master"
+        },
+        {
+          "action": "pivot-pad",
+          "notes": "center origin 0.5 on transparent canvas"
+        }
+      ],
+      "subject": "FRY SCOUT — red carton fries scout with thin legs",
+      "humanDecision": "PASS 2026-09-10",
+      "generator": "ChatGPT image generation",
+      "generatedOn": "2026-09-10",
+      "termsUrl": "https://openai.com/policies/row-terms-of-use/",
+      "termsEffectiveOn": "2026-01-01",
+      "termsCheckedOn": "2026-09-10",
+      "similarityRiskReviewed": true
+    },
+    {
+      "id": "pixel.bullet.playerCrumpledCheckup",
+      "textureKey": "tex-bullet-player",
+      "rawSourcePath": "assets-src/raw/chatgpt-2026-09-10/bullet_player_crumpled_checkup.png",
+      "rawSourceWidth": 1300,
+      "rawSourceHeight": 1209,
+      "rawSha256": "dc198ed4110db526d6664a8749f1e6a3542d9e7edb613147e19301d24ca3df86",
+      "masterPath": "assets-src/masters/bullets/bullet_player_crumpled_checkup.png",
+      "processedPath": "assets-src/processed/bullets/bullet_player_crumpled_checkup.png",
+      "runtimePath": "assets/sprites/bullets/player_crumpled_checkup.png",
+      "publicPath": "public/assets/sprites/bullets/player_crumpled_checkup.png",
+      "runtimeWidth": 12,
+      "runtimeHeight": 16,
+      "masterWidth": 48,
+      "masterHeight": 64,
+      "paletteUsed": [
+        "#21102F",
+        "#6B3A22",
+        "#9D93B5",
+        "#FF4F64",
+        "#FFF0D2"
+      ],
+      "opaquePixelCount": 90,
+      "processingHistory": [
+        {
+          "action": "ingest-raw",
+          "notes": "byte-for-byte handoff copy verified by SHA-256"
+        },
+        {
+          "action": "index-palette",
+          "notes": "nearest FI-10 closed palette; alpha binarize 0/255"
+        },
+        {
+          "action": "defringe",
+          "notes": "transparent RGB cleared to 0"
+        },
+        {
+          "action": "crop",
+          "notes": "opaque bbox 670x594"
+        },
+        {
+          "action": "nearest-to-master",
+          "notes": "fit 12x11 into runtime 12x16; upscale ×4 to master"
+        },
+        {
+          "action": "nearest-downscale",
+          "notes": "runtime is exact every-4th-pixel of master"
+        },
+        {
+          "action": "pivot-pad",
+          "notes": "center origin 0.5 on transparent canvas"
+        }
+      ],
+      "subject": "くしゃ紙弾 — crumpled medical-checkup paper wad projectile",
+      "humanDecision": "PASS 2026-09-10",
+      "generator": "ChatGPT image generation",
+      "generatedOn": "2026-09-10",
+      "termsUrl": "https://openai.com/policies/row-terms-of-use/",
+      "termsEffectiveOn": "2026-01-01",
+      "termsCheckedOn": "2026-09-10",
+      "similarityRiskReviewed": true
+    },
+    {
+      "id": "pixel.bullet.goldenFry",
+      "textureKey": "tex-bullet-fry",
+      "rawSourcePath": "assets-src/raw/chatgpt-2026-09-10/bullet_enemy_golden_fry.png",
+      "rawSourceWidth": 1300,
+      "rawSourceHeight": 1209,
+      "rawSha256": "5b2edc67601acd715eb993f0786e1dd11edb3ca5db875a7d5010c2ca8e607ca9",
+      "masterPath": "assets-src/masters/bullets/bullet_enemy_golden_fry.png",
+      "processedPath": "assets-src/processed/bullets/bullet_enemy_golden_fry.png",
+      "runtimePath": "assets/sprites/bullets/enemy_golden_fry.png",
+      "publicPath": "public/assets/sprites/bullets/enemy_golden_fry.png",
+      "runtimeWidth": 14,
+      "runtimeHeight": 14,
+      "masterWidth": 56,
+      "masterHeight": 56,
+      "paletteUsed": [
+        "#21102F",
+        "#6B3A22",
+        "#C43B3B",
+        "#FF4F64",
+        "#FFB33D",
+        "#FFF0D2"
+      ],
+      "opaquePixelCount": 121,
+      "processingHistory": [
+        {
+          "action": "ingest-raw",
+          "notes": "byte-for-byte handoff copy verified by SHA-256"
+        },
+        {
+          "action": "index-palette",
+          "notes": "nearest FI-10 closed palette; alpha binarize 0/255"
+        },
+        {
+          "action": "defringe",
+          "notes": "transparent RGB cleared to 0"
+        },
+        {
+          "action": "crop",
+          "notes": "opaque bbox 708x656"
+        },
+        {
+          "action": "nearest-to-master",
+          "notes": "fit 12x11 into runtime 14x14; upscale ×4 to master"
+        },
+        {
+          "action": "nearest-downscale",
+          "notes": "runtime is exact every-4th-pixel of master"
+        },
+        {
+          "action": "pivot-pad",
+          "notes": "center origin 0.5 on transparent canvas"
+        }
+      ],
+      "subject": "黄金フライ弾 — dense aligned golden fry bundle",
+      "humanDecision": "PASS 2026-09-10",
+      "generator": "ChatGPT image generation",
+      "generatedOn": "2026-09-10",
+      "termsUrl": "https://openai.com/policies/row-terms-of-use/",
+      "termsEffectiveOn": "2026-01-01",
+      "termsCheckedOn": "2026-09-10",
+      "similarityRiskReviewed": true
+    },
+    {
+      "id": "pixel.boss.kingBurger.idle",
+      "textureKey": "tex-boss-king-burger-mini",
+      "rawSourcePath": "assets-src/raw/chatgpt-2026-09-10/boss_king_burger.png",
+      "rawSourceWidth": 1448,
+      "rawSourceHeight": 1086,
+      "rawSha256": "e86beec0ee26fa9ce57f4255b0a58a7a1d8c45daec591ead54d9dc61e94d88c5",
+      "masterPath": "assets-src/masters/bosses/boss_king_burger_idle.png",
+      "processedPath": "assets-src/processed/bosses/boss_king_burger_idle.png",
+      "runtimePath": "assets/sprites/bosses/king_burger_mini.png",
+      "publicPath": "public/assets/sprites/bosses/king_burger_mini.png",
+      "runtimeWidth": 96,
+      "runtimeHeight": 72,
+      "masterWidth": 384,
+      "masterHeight": 288,
+      "paletteUsed": [
+        "#21102F",
+        "#6B3A22",
+        "#7CB342",
+        "#9D93B5",
+        "#B9FF4A",
+        "#C43B3B",
+        "#FF4F64",
+        "#FF71C8",
+        "#FFB33D",
+        "#FFD27A",
+        "#FFF0D2"
+      ],
+      "opaquePixelCount": 3381,
+      "processingHistory": [
+        {
+          "action": "ingest-raw",
+          "notes": "byte-for-byte handoff copy verified by SHA-256"
+        },
+        {
+          "action": "index-palette",
+          "notes": "nearest FI-10 closed palette; alpha binarize 0/255"
+        },
+        {
+          "action": "defringe",
+          "notes": "transparent RGB cleared to 0"
+        },
+        {
+          "action": "crop",
+          "notes": "opaque bbox 1281x917"
+        },
+        {
+          "action": "nearest-to-master",
+          "notes": "fit 88x63 into runtime 96x72; upscale ×4 to master"
+        },
+        {
+          "action": "nearest-downscale",
+          "notes": "runtime is exact every-4th-pixel of master"
+        },
+        {
+          "action": "pivot-pad",
+          "notes": "center origin 0.5 on transparent canvas"
+        }
+      ],
+      "subject": "KING BURGER — crowned multi-layer burger boss",
+      "humanDecision": "PASS 2026-09-10",
+      "generator": "ChatGPT image generation",
+      "generatedOn": "2026-09-10",
+      "termsUrl": "https://openai.com/policies/row-terms-of-use/",
+      "termsEffectiveOn": "2026-01-01",
+      "termsCheckedOn": "2026-09-10",
+      "similarityRiskReviewed": true
+    }
+  ]
+}
