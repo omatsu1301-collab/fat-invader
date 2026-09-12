@@ -73,7 +73,7 @@ export class TitleScene extends Phaser.Scene {
 
     const howTo = isTouchDevice()
       ? 'HOW TO PLAY\nDRAG to move · AUTO FIRE\n避ける · 拾う · ボスを落とせ'
-      : 'HOW TO PLAY\n← → move · SPACE fire\n避ける · 拾う · ボスを落とせ';
+      : 'HOW TO PLAY\n← → ↑ ↓ / WASD move · SPACE fire\n避ける · 拾う · ボスを落とせ';
     this.add
       .text(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT * 0.42, howTo, {
         fontFamily: 'monospace',

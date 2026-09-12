@@ -9,6 +9,7 @@ import { computePlayerMovementStep } from '../domain/player-movement';
 export type PlayerHandle = {
   sprite: Phaser.Physics.Arcade.Sprite;
   velocityXPxPerSec: number;
+  velocityYPxPerSec: number;
   invulnerableUntilMs: number;
   nextFireAtMs: number;
 };
@@ -61,6 +62,8 @@ export function createPlayer(
   y: number,
   minX: number,
   maxX: number,
+  minY: number,
+  maxY: number,
 ): PlayerHandle {
   const sprite = scene.physics.add.sprite(x, y, TextureKey.player);
   sprite.setDepth(DisplayDepth.actor);
@@ -73,15 +76,22 @@ export function createPlayer(
   body.setOffset((width - hitboxW) / 2, (width - hitboxH) / 2);
   sprite.setData('minX', minX);
   sprite.setData('maxX', maxX);
+  sprite.setData('minY', minY);
+  sprite.setData('maxY', maxY);
   sprite.clearTint();
 
-  return { sprite, velocityXPxPerSec: 0, invulnerableUntilMs: 0, nextFireAtMs: 0 };
+  return {
+    sprite,
+    velocityXPxPerSec: 0,
+    velocityYPxPerSec: 0,
+    invulnerableUntilMs: 0,
+    nextFireAtMs: 0,
+  };
 }
 
 /**
  * FI-02 section 4.3 control quality: acceleration/deceleration ramps toward
- * the target velocity rather than snapping, for both keyboard axis input and
- * mobile drag-follow.
+ * the target velocity rather than snapping, for keyboard 4-way and mobile 2D drag.
  */
 export function updatePlayerMovement(
   handle: PlayerHandle,
@@ -92,9 +102,16 @@ export function updatePlayerMovement(
   const { sprite } = handle;
   const minX = sprite.getData('minX') as number;
   const maxX = sprite.getData('maxX') as number;
+  const minY = sprite.getData('minY') as number;
+  const maxY = sprite.getData('maxY') as number;
 
   const next = computePlayerMovementStep(
-    { x: sprite.x, velocityXPxPerSec: handle.velocityXPxPerSec },
+    {
+      x: sprite.x,
+      y: sprite.y,
+      velocityXPxPerSec: handle.velocityXPxPerSec,
+      velocityYPxPerSec: handle.velocityYPxPerSec,
+    },
     intent,
     dtMs,
     {
@@ -103,10 +120,14 @@ export function updatePlayerMovement(
       releaseDecelMs: GameBalance.player.releaseDecelMs,
       minX,
       maxX,
+      minY,
+      maxY,
     },
   );
   sprite.x = next.x;
+  sprite.y = next.y;
   handle.velocityXPxPerSec = next.velocityXPxPerSec;
+  handle.velocityYPxPerSec = next.velocityYPxPerSec;
 }
 
 export function isInvulnerable(handle: PlayerHandle, nowMs: number): boolean {

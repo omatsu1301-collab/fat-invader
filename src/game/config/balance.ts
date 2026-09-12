@@ -18,6 +18,12 @@ export const GameBalance = {
     hitboxHeightRatio: 0.7,
     spriteSize: 40,
     overflowingSpeedMultiplier: 0.92,
+    /**
+     * Combat Zone vertical band (LOGICAL_HEIGHT fractions).
+     * Keeps Invader feel: no free flight across the full playfield.
+     */
+    combatZoneMinYFraction: 0.62,
+    combatZoneMaxYFraction: 0.9,
   },
 
   combo: {
