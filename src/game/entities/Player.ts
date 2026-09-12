@@ -20,13 +20,30 @@ const TIER_TINT: Record<Exclude<AppearanceTier, 'light'>, number> = {
 };
 
 /**
- * Pilot one-still Player art is multicolor. `light` must not cyan-wash authored pixels.
- * Higher tiers keep temporary tint signaling until dedicated tier sprites exist.
+ * Salaryman graybox is not a multicolor North Star sprite. `light` still
+ * clears tint; higher tiers keep soft signaling until dedicated tier art exists.
  * Returns `null` when the sprite should clearTint().
  */
 export function appearanceTintForTier(tier: AppearanceTier): number | null {
   if (tier === 'light') return null;
   return TIER_TINT[tier];
+}
+
+/**
+ * Display-only scale by Appearance tier. Must never change Arcade body size.
+ * Range kept tiny (1.0–1.05) so readability stays intact.
+ */
+export function displayScaleForTier(tier: AppearanceTier): number {
+  switch (tier) {
+    case 'light':
+      return 1.0;
+    case 'rounded':
+      return 1.02;
+    case 'heavy':
+      return 1.035;
+    case 'overflowing':
+      return 1.05;
+  }
 }
 
 export function setAppearanceTint(handle: PlayerHandle, tier: AppearanceTier): void {

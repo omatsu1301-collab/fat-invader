@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
 
+/** TitleScene START label sits at LOGICAL_HEIGHT * 0.84 after HOW TO PLAY / SETTINGS. */
+const START_CLICK_Y_RATIO = 0.84;
+
 test.describe('Title smoke', () => {
   test('renders within viewport, raises no errors, and starts gameplay', async (
     { page },
@@ -38,7 +41,7 @@ test.describe('Title smoke', () => {
 
     if (box) {
       // AC-004 / AC-100: start input must be accepted and move into gameplay.
-      await canvas.click({ position: { x: box.width / 2, y: box.height * 0.76 } });
+      await canvas.click({ position: { x: box.width / 2, y: box.height * START_CLICK_Y_RATIO } });
     }
 
     await page.waitForFunction(() => (window.__FAT_E2E__?.getSnapshot().startPressCount ?? 0) > 0);

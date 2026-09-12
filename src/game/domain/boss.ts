@@ -1,10 +1,7 @@
 /**
  * FI-02 section 9: bosses run `intro -> phase1 -> phase2 -> rage -> dead`.
- * Milestone A's simplified boss keeps only the two combat phases required by
- * the vertical slice acceptance ("Bossは最低2つの行動状態を持つ"), plus the
- * non-combat intro/dead bookends needed for a clean lifecycle.
  */
-export type BossPhase = 'intro' | 'phase1' | 'phase2' | 'dead';
+export type BossPhase = 'intro' | 'phase1' | 'phase2' | 'rage' | 'dead';
 
 export type BossState = {
   phase: BossPhase;
@@ -17,12 +14,17 @@ export function createBossState(maxHp: number): BossState {
   return { phase: 'intro', hp: maxHp, maxHp, wasHitThisRun: false };
 }
 
-/** Pure transition: intro ends explicitly, phase1->phase2 on HP threshold, any phase->dead at 0 HP. */
+/** Pure transition with rage threshold support (AC-303). */
 export function transitionBossPhase(
   state: BossState,
   event:
     | { type: 'INTRO_COMPLETE' }
-    | { type: 'DAMAGE'; amount: number; phase2HpFraction: number },
+    | {
+        type: 'DAMAGE';
+        amount: number;
+        phase2HpFraction: number;
+        rageHpFraction: number;
+      },
 ): BossState {
   if (state.phase === 'dead') return state;
 
@@ -35,13 +37,18 @@ export function transitionBossPhase(
     return { ...state, hp: 0, phase: 'dead', wasHitThisRun: true };
   }
 
-  const shouldEnterPhase2 =
-    state.phase === 'phase1' && hp <= state.maxHp * event.phase2HpFraction;
+  let phase = state.phase;
+  if (phase === 'phase1' && hp <= state.maxHp * event.phase2HpFraction) {
+    phase = 'phase2';
+  }
+  if ((phase === 'phase1' || phase === 'phase2') && hp <= state.maxHp * event.rageHpFraction) {
+    phase = 'rage';
+  }
 
   return {
     ...state,
     hp,
-    phase: shouldEnterPhase2 ? 'phase2' : state.phase,
+    phase,
     wasHitThisRun: true,
   };
 }

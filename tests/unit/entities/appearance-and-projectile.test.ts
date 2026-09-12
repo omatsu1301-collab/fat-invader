@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { appearanceTintForTier } from '../../../src/game/entities/Player';
+import { appearanceTintForTier, displayScaleForTier } from '../../../src/game/entities/Player';
 import { projectileBodyForBulletId } from '../../../src/game/entities/Projectile';
 
-describe('Player appearance tint pilot (AC-117 adjacent)', () => {
-  it('does not cyan-wash the light tier authored sprite', () => {
+describe('Player appearance tint (salaryman graybox)', () => {
+  it('clears tint on light tier (no cyan wash)', () => {
     expect(appearanceTintForTier('light')).toBeNull();
   });
 
@@ -11,6 +11,12 @@ describe('Player appearance tint pilot (AC-117 adjacent)', () => {
     expect(appearanceTintForTier('rounded')).toBe(0x8ff2ff);
     expect(appearanceTintForTier('heavy')).toBe(0xbfe9ff);
     expect(appearanceTintForTier('overflowing')).toBe(0xffd7dc);
+  });
+
+  it('scales display only within 1.0–1.05 by tier', () => {
+    expect(displayScaleForTier('light')).toBe(1);
+    expect(displayScaleForTier('rounded')).toBeGreaterThanOrEqual(1);
+    expect(displayScaleForTier('overflowing')).toBeLessThanOrEqual(1.05);
   });
 });
 

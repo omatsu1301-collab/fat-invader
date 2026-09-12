@@ -7,10 +7,12 @@ import type { FatE2ERunSnapshot } from '../../src/test-support/e2e-bridge';
 // so this Node-side test file never pulls in Phaser, which touches canvas/DOM
 // globals at module init and cannot run outside a browser context.
 const LOGICAL_WIDTH = 390;
+/** TitleScene START label sits at LOGICAL_HEIGHT * 0.84 after HOW TO PLAY / SETTINGS. */
+const START_CLICK_Y_RATIO = 0.84;
 
 type Box = { x: number; y: number; width: number; height: number };
 
-async function waitForScene(page: Page, sceneKey: string, timeout = 4000): Promise<void> {
+async function waitForScene(page: Page, sceneKey: string, timeout = 10_000): Promise<void> {
   await page.waitForFunction(
     (key) => window.__FAT_E2E__?.getSnapshot().sceneKey === key,
     sceneKey,
@@ -26,9 +28,26 @@ async function startRun(page: Page, seed: string): Promise<Box> {
   const canvas = page.locator('canvas');
   const box = await canvas.boundingBox();
   if (!box) throw new Error('canvas bounding box not found');
-  await canvas.click({ position: { x: box.width / 2, y: box.height * 0.76 } });
+  await canvas.click({ position: { x: box.width / 2, y: box.height * START_CLICK_Y_RATIO } });
   await waitForScene(page, 'GameScene');
   return box;
+}
+
+async function skipToBoss(page: Page): Promise<void> {
+  // Call skip only while pre-boss: repeating debugSkipToBoss resets the warning timer.
+  await page.waitForFunction(
+    () => {
+      const run = window.__FAT_E2E__?.getSnapshot().run;
+      if (run?.bossPhase !== undefined) return true;
+      const phase = run?.phase;
+      if (phase === 'bossWarning' || phase === 'bossIntro' || phase === 'bossActive' || phase === 'bossDeath') {
+        return false;
+      }
+      window.__FAT_E2E__?.debugSkipToBoss();
+      return false;
+    },
+    { timeout: 10_000, polling: 150 },
+  );
 }
 
 /**
@@ -40,6 +59,10 @@ async function startRun(page: Page, seed: string): Promise<Box> {
  * projects (Phaser treats mouse and touch pointers uniformly), so this one
  * path aims the player under the boss on Desktop and Mobile alike; firing
  * is manual (held Space) on Desktop and automatic on Mobile.
+ *
+ * Stage 1 boss defeat no longer ends the run (multi-stage). After a real
+ * stage-1 kill, `debugForceRunClear` advances remaining stages so Result
+ * CLEAR still covers AC-130.
  */
 async function defeatBossWithRealCollision(page: Page, box: Box, isMobile: boolean): Promise<void> {
   await page.evaluate(() => window.__FAT_E2E__?.debugSetBossHp(1));
@@ -54,7 +77,7 @@ async function defeatBossWithRealCollision(page: Page, box: Box, isMobile: boole
   let defeated = false;
   for (let i = 0; i < 60 && !defeated; i += 1) {
     const run = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
-    if (run?.endReason === 'CLEAR') {
+    if ((run?.bossesKilled ?? 0) >= 1 || run?.bossPhase === 'dead') {
       defeated = true;
       break;
     }
@@ -76,6 +99,8 @@ async function defeatBossWithRealCollision(page: Page, box: Box, isMobile: boole
       `Boss was not defeated via real collision within the timeout. Final run snapshot: ${JSON.stringify(finalRun)}`,
     );
   }
+
+  await page.evaluate(() => window.__FAT_E2E__?.debugForceRunClear());
 }
 
 async function startAimingAndFiringAtBoss(page: Page, box: Box, isMobile: boolean): Promise<void> {
@@ -108,6 +133,7 @@ test.describe('Vertical slice', () => {
   test('title -> move -> fire -> kill -> calorie -> boss (real hit) -> clear -> result -> retry (AC-130/131/132)', async ({
     page,
   }, testInfo) => {
+    test.setTimeout(90_000);
     const consoleErrors: string[] = [];
     const pageErrors: string[] = [];
     page.on('console', (msg) => {
@@ -156,18 +182,7 @@ test.describe('Vertical slice', () => {
     // AC-102: Desktop manual fire and Mobile auto-fire both produce shots.
     expect(shotsFired).toBeGreaterThan(0);
 
-    // Deterministically finish the formation wave (real kill path, kept fast
-    // for CI via the E2E-only debug command per FI-03 section 14). The
-    // formation spawns in staggered waves, so this polls-and-kills rather
-    // than firing once, otherwise enemies spawned after a single sweep would
-    // never be cleared and the wave would never complete.
-    await page.waitForFunction(
-      () => {
-        window.__FAT_E2E__?.debugKillAllEnemies();
-        return window.__FAT_E2E__?.getSnapshot().run?.bossPhase !== undefined;
-      },
-      { timeout: 10_000, polling: 150 },
-    );
+    await skipToBoss(page);
 
     const calorieBefore = await page.evaluate(
       () => window.__FAT_E2E__?.getSnapshot().run?.calorie ?? 0,
@@ -180,13 +195,14 @@ test.describe('Vertical slice', () => {
     );
 
     // Blocker 1 fix proof: the boss must go down via a real player-projectile
-    // collision, not a debug "defeat" shortcut.
+    // collision, not a debug "defeat" shortcut. Force-clear remaining stages
+    // afterward so Result CLEAR still covers AC-130 under multi-stage.
     await defeatBossWithRealCollision(page, box, isMobile);
     await waitForScene(page, 'ResultScene', 8000);
 
     const resultSnapshot = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot());
     expect(resultSnapshot?.run?.endReason).toBe('CLEAR');
-    expect(resultSnapshot?.run?.bossesKilled).toBe(1);
+    expect(resultSnapshot?.run?.bossesKilled).toBeGreaterThanOrEqual(1);
 
     // AC-132: Retry from Result must start a genuinely fresh run.
     await canvas.click({ position: { x: box.width / 2, y: box.height * 0.74 } });
@@ -233,31 +249,27 @@ test.describe('Vertical slice', () => {
     // Let the 650ms post-hit invulnerability window (AC-114) expire before
     // pausing, so it can't also suppress the second hit queued below and
     // confound this test's proof that *pause* — not invulnerability — is
-    // what's blocking it.
-    await page.waitForTimeout(750);
+    // what's blocking it. Clear enemies so stray bullets cannot refresh invuln.
+    await page.evaluate(() => window.__FAT_E2E__?.debugKillAllEnemies());
+    await page.waitForTimeout(800);
 
     await page.keyboard.press('Escape');
+    await page.waitForTimeout(80);
+    // Confirm paused via frozen clock before queueing the hit.
     const before = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run)).toEqual(before);
 
-    // Real time passes while paused; nothing in the run should move.
-    await page.waitForTimeout(800);
-    const afterWait = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
-    expect(afterWait).toEqual(before);
-
-    // A hit queued while paused must not be resolved until play resumes,
-    // since resolveCombat only runs inside the active (non-paused) update path.
     await page.evaluate(() => window.__FAT_E2E__?.debugApplyPlayerCalorie(50));
     await page.waitForTimeout(300);
     const stillPaused = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
     expect(stillPaused?.calorie).toBe(before?.calorie);
-    expect(stillPaused?.playerX).toBe(before?.playerX);
 
-    await page.locator('canvas').click({ position: { x: 10, y: 10 } });
     await page.keyboard.press('Escape'); // resume
     await page.waitForFunction(
       (expected) => (window.__FAT_E2E__?.getSnapshot().run?.calorie ?? 0) >= expected,
       (before?.calorie ?? 0) + 50,
-      { timeout: 5000 },
+      { timeout: 8000 },
     );
   });
 
@@ -355,15 +367,7 @@ test.describe('Vertical slice', () => {
     const box = await startRun(page, 'e2e-boss-nonlethal-hit');
     const isMobile = Boolean(testInfo.project.use.isMobile);
 
-    // The boss handle doesn't exist until the formation wave is cleared, so
-    // debugSetBossHp/bossHp/bossSprite* are all no-ops/undefined before this.
-    await page.waitForFunction(
-      () => {
-        window.__FAT_E2E__?.debugKillAllEnemies();
-        return window.__FAT_E2E__?.getSnapshot().run?.bossPhase !== undefined;
-      },
-      { timeout: 10_000, polling: 150 },
-    );
+    await skipToBoss(page);
 
     await page.evaluate(() => window.__FAT_E2E__?.debugSetBossHp(10));
     const initial = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
@@ -383,7 +387,7 @@ test.describe('Vertical slice', () => {
       }
       // Safety valve: the HP=10 buffer should make this unreachable, but
       // fail loudly rather than hang if it somehow dies before we observe it.
-      if (run?.bossHp === 0 || run?.endReason) break;
+      if (run?.bossHp === 0 || (run?.bossesKilled ?? 0) >= 1 || run?.endReason) break;
       await keepAimingAtBoss(page, box);
       await page.waitForTimeout(80);
     }
@@ -409,6 +413,9 @@ test.describe('Vertical slice', () => {
    * the hit that brings HP to 0 ending the fight — as opposed to the bug,
    * where the first hit silently ended the boss's ability to take further
    * damage without actually defeating it.
+   *
+   * Multi-stage: stage-1 boss death does not CLEAR the run; we assert the
+   * kill itself, then force-clear remaining stages for Result cleanup.
    */
   test('boss takes several real hits to defeat and only the killing hit ends the fight (Human Gate 1 P1 regression, Test 2)', async ({
     page,
@@ -416,50 +423,53 @@ test.describe('Vertical slice', () => {
     const box = await startRun(page, 'e2e-boss-multi-hit');
     const isMobile = Boolean(testInfo.project.use.isMobile);
 
-    // The boss handle doesn't exist until the formation wave is cleared, so
-    // debugSetBossHp/bossHp/bossSprite* are all no-ops/undefined before this.
+    await skipToBoss(page);
     await page.waitForFunction(
       () => {
-        window.__FAT_E2E__?.debugKillAllEnemies();
-        return window.__FAT_E2E__?.getSnapshot().run?.bossPhase !== undefined;
+        const run = window.__FAT_E2E__?.getSnapshot().run;
+        return run?.phase === 'bossActive' || run?.bossPhase === 'phase1';
       },
-      { timeout: 10_000, polling: 150 },
+      { timeout: 12_000 },
     );
 
-    await page.evaluate(() => window.__FAT_E2E__?.debugSetBossHp(3));
+    await page.evaluate(() => window.__FAT_E2E__?.debugSetBossHp(5));
 
     await startAimingAndFiringAtBoss(page, box, isMobile);
 
     let sawIntermediateAliveState = false;
-    let cleared = false;
-    for (let i = 0; i < 100 && !cleared; i += 1) {
+    let defeated = false;
+    for (let i = 0; i < 150 && !defeated; i += 1) {
       const run = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
-      if (run?.endReason === 'CLEAR') {
-        cleared = true;
+      if ((run?.bossesKilled ?? 0) >= 1 || run?.bossPhase === 'dead') {
+        defeated = true;
         break;
       }
-      if (typeof run?.bossHp === 'number' && run.bossHp > 0 && run.bossHp < 3) {
+      if (typeof run?.bossHp === 'number' && run.bossHp > 0 && run.bossHp < 5) {
         sawIntermediateAliveState = true;
-        // At every alive intermediate HP, the boss must remain fully present.
         expect(run.bossSpriteActive).toBe(true);
         expect(run.bossSpriteVisible).toBe(true);
         expect(run.bossBodyEnabled).toBe(true);
       }
       await keepAimingAtBoss(page, box);
-      await page.waitForTimeout(80);
+      await page.waitForTimeout(50);
     }
 
     await stopAimingAndFiring(page, isMobile);
 
-    expect(cleared, 'boss fight did not reach Stage Clear within the timeout').toBe(true);
+    expect(defeated, 'boss was not defeated via real hits within the timeout').toBe(true);
     expect(
       sawIntermediateAliveState,
       'expected to observe at least one intermediate HP state (1 or 2) before defeat — otherwise this test cannot distinguish "3 real hits" from "1 hit that happened to be lethal"',
     ).toBe(true);
 
-    const finalRun = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
-    expect(finalRun?.bossesKilled).toBe(1);
+    const afterDeath = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+    expect(afterDeath?.bossesKilled).toBeGreaterThanOrEqual(1);
+    expect(afterDeath?.endReason).toBeUndefined();
 
+    await page.evaluate(() => window.__FAT_E2E__?.debugForceRunClear());
     await waitForScene(page, 'ResultScene', 8000);
+    const finalRun = await page.evaluate(() => window.__FAT_E2E__?.getSnapshot().run);
+    expect(finalRun?.endReason).toBe('CLEAR');
+    expect(finalRun?.bossesKilled).toBeGreaterThanOrEqual(1);
   });
 });

@@ -21,8 +21,82 @@ export function projectileBodyForBulletId(bulletId: string): {
     // Visual canvas 12×16; collision remains 6×16 centered horizontally.
     return { width: 6, height: 16, offsetX: 3, offsetY: 0 };
   }
-  // fry and any other enemy food bullet in this pilot
-  return { width: 14, height: 14, offsetX: 0, offsetY: 0 };
+  if (bulletId === 'fry') {
+    return { width: 14, height: 14, offsetX: 0, offsetY: 0 };
+  }
+  if (bulletId === 'donut') {
+    return { width: 12, height: 12, offsetX: 2, offsetY: 2 };
+  }
+  if (bulletId === 'pizzaSlice') {
+    return { width: 12, height: 12, offsetX: 2, offsetY: 2 };
+  }
+  if (bulletId === 'tapioca') {
+    return { width: 8, height: 8, offsetX: 1, offsetY: 1 };
+  }
+  if (bulletId === 'cake') {
+    return { width: 18, height: 18, offsetX: 2, offsetY: 2 };
+  }
+  if (bulletId === 'sodaLaser') {
+    // Default; applySodaLaserHazardGeometry stretches to full corridor height.
+    return { width: 20, height: 32, offsetX: 0, offsetY: 0 };
+  }
+  return { width: 12, height: 12, offsetX: 0, offsetY: 0 };
+}
+
+type ProjectileDataSprite = {
+  setData: (key: string, value: unknown) => unknown;
+  setScale: (x?: number, y?: number) => unknown;
+  setAngle?: (degrees: number) => unknown;
+  setRotation?: (radians: number) => unknown;
+  setAlpha?: (value: number) => unknown;
+  clearTint?: () => unknown;
+};
+
+/**
+ * Pool reuse boundary: clear every pattern-specific mutable field before a
+ * sprite is issued as a new projectile. Callers then set fresh payload/body.
+ */
+export function resetProjectileForReuse(sprite: ProjectileDataSprite): void {
+  sprite.setScale(1);
+  sprite.setAngle?.(0);
+  sprite.setRotation?.(0);
+  sprite.setAlpha?.(1);
+  sprite.clearTint?.();
+  sprite.setData('sine', undefined);
+  sprite.setData('expiresAtMs', undefined);
+  sprite.setData('sodaLaserLaneX', undefined);
+  sprite.setData('sodaLaserEndY', undefined);
+  sprite.setData('sodaLaserTopY', undefined);
+  sprite.setData('laserHazard', undefined);
+  sprite.setData('payload', undefined);
+}
+
+/** Optional sine drift for DONUT bullets (display path follows gameplay velocity X). */
+export function updateSineProjectiles(group: Phaser.Physics.Arcade.Group, nowMs: number): void {
+  for (const child of group.children) {
+    const sprite = child as Phaser.Physics.Arcade.Sprite;
+    if (!sprite.active) continue;
+    const sine = sprite.getData('sine') as
+      | { originX: number; amplitude: number; periodMs: number; bornAtMs: number; baseVx: number }
+      | undefined;
+    if (!sine) continue;
+    const t = nowMs - sine.bornAtMs;
+    const offset = Math.sin((t / sine.periodMs) * Math.PI * 2) * sine.amplitude;
+    sprite.x = sine.originX + offset + sine.baseVx * (t / 1000);
+  }
+}
+
+/** Deactivates timed hazards such as soda-laser beams. */
+export function updateExpiredProjectiles(group: Phaser.Physics.Arcade.Group, nowMs: number): void {
+  for (const child of group.children) {
+    const sprite = child as Phaser.Physics.Arcade.Sprite;
+    if (!sprite.active) continue;
+    const expiresAtMs = sprite.getData('expiresAtMs') as number | undefined;
+    if (expiresAtMs === undefined) continue;
+    if (nowMs >= expiresAtMs) {
+      deactivateProjectile(sprite);
+    }
+  }
 }
 
 /**
@@ -45,6 +119,7 @@ export function fireProjectile(
   sprite.setActive(true);
   sprite.setVisible(true);
   sprite.setPosition(x, y);
+  resetProjectileForReuse(sprite);
   const body = sprite.body as Phaser.Physics.Arcade.Body;
   body.enable = true;
   body.reset(x, y);

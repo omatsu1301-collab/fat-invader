@@ -149,41 +149,45 @@
 
 Human Gate 2 (2026-09-08, follow-up 2026-09-09): **CONDITIONAL PASS / 修正付き採用（正式PASSではない）。** AC-230 / AC-231 は PASS「ちょうどいい」（通常敵kill feelは非変更）。Boss death は Human PASS「めっちゃいいね」（3-beat非変更）。FAT OVER は pose+caption を約1.6秒から約2.6秒へ延長後、Human PASS「約2.6秒を採用」（`fatOverHoldMs: 2600`、非変更）。AC-232 / AC-233 はplaceholderのため保留し、最終ドット素材導入後に再判定する。
 
-## 7. Milestone C Acceptance — Content
+Full Graybox Human Gate (2026-09-11): Stage 1→2→3 実プレイ PASS。攻撃パターン難易度は採用（弱めない）。FAT OVER は pose 余韻中に caption が重なる問題 → `fatOverCaptionDelayMs: 1100` で pose-only → caption → Result に修正（`fatOverHoldMs: 2600` は維持）。
+
+## 7. Milestone C Acceptance — Content (Full Graybox)
+
+**Status (feat/full-graybox-v01 Draft):** automated evidence in progress / Human taste PENDING.
 
 ### 7.1 Content completeness
 
-| ID | Requirement | Evidence | Priority |
-| --- | --- | --- | --- |
-| AC-300 | 3 Stageすべてに通常WaveとBossがある | R, E | MUST |
-| AC-301 | 通常敵5種以上が到達可能 | R, E | MUST |
-| AC-302 | Food bullet visual / behavior combinationが10以上 | R, E | MUST |
-| AC-303 | Boss 3体がintro、phase1、phase2、rage、deadを一度ずつ遷移可能 | I, E | MUST |
-| AC-304 | Power-up 5種が取得・終了・併用ruleどおり | U, I, E | MUST |
-| AC-305 | Runtime appearance 4段階、Result appearance 6段階が存在 | R, V | MUST |
-| AC-306 | 全content id、asset id、pattern idがvalidationを通る | U | MUST |
+| ID | Requirement | Evidence | Priority | Graybox status |
+| --- | --- | --- | --- | --- |
+| AC-300 | 3 Stageすべてに通常WaveとBossがある | R, E | MUST | Automated PASS (content + e2e) |
+| AC-301 | 通常敵5種以上が到達可能 | R, E | MUST | Automated PASS |
+| AC-302 | Food bullet visual / behavior combinationが10以上 | R, E | MUST | Automated PASS (patterns) |
+| AC-303 | Boss 3体がintro、phase1、phase2、rage、deadを一度ずつ遷移可能 | I, E | MUST | Automated PASS (domain + content) |
+| AC-304 | Power-up 5種が取得・終了・併用ruleどおり | U, I, E | MUST | Automated PASS |
+| AC-305 | Runtime appearance 4段階、Result appearance 6段階が存在 | R, V | MUST | Placeholder PASS (Human polish later) |
+| AC-306 | 全content id、asset id、pattern idがvalidationを通る | U | MUST | Automated PASS |
 
 ### 7.2 Full run
 
-| ID | Requirement | Evidence | Priority |
-| --- | --- | --- | --- |
-| AC-310 | Fixed seed 3種で進行不能なくRun clear可能 | E | MUST |
-| AC-311 | Boss撃破後にenemy bullet hitが発生しない | I, E | MUST |
-| AC-312 | Stage間でCALORIEを引継ぎ10減少 | U, I | MUST |
-| AC-313 | Full scripted runが想定3〜5分の範囲または調整根拠あり | E, H | MUST |
-| AC-314 | Run clear時だけevaluationScoreを計算 | U, I | MUST |
-| AC-315 | Rank境界34/35、49/50、64/65、79/80、94/95が正しい | U | MUST |
-| AC-316 | High score / best rankが改善時だけ更新 | U, I | MUST |
+| ID | Requirement | Evidence | Priority | Graybox status |
+| --- | --- | --- | --- | --- |
+| AC-310 | Fixed seed 3種で進行不能なくRun clear可能 | E | MUST | Automated PASS (`full-graybox.spec`) |
+| AC-311 | Boss撃破後にenemy bullet hitが発生しない | I, E | MUST | Automated PASS (feel / slice) |
+| AC-312 | Stage間でCALORIEを引継ぎ10減少 | U, I | MUST | Automated PASS |
+| AC-313 | Full scripted runが想定3〜5分の範囲または調整根拠あり | E, H | MUST | Compact waves; **Human duration PENDING** |
+| AC-314 | Run clear時だけevaluationScoreを計算 | U, I | MUST | Automated PASS |
+| AC-315 | Rank境界34/35、49/50、64/65、79/80、94/95が正しい | U | MUST | Automated PASS |
+| AC-316 | High score / best rankが改善時だけ更新 | U, I | MUST | Automated PASS |
 
 ### 7.3 Fairness
 
-| ID | Requirement | Evidence | Priority |
-| --- | --- | --- | --- |
-| AC-320 | 高速・laser・突進攻撃に視覚予告がある | V, H | MUST |
-| AC-321 | 画面外から予告なしのhitがない | I, E | MUST |
-| AC-322 | Bossに最低一つの安全経路が継続的に存在 | scripted analysis, H | MUST |
-| AC-323 | RNG seedで避けられない重なりが生成されない | E | MUST |
-| AC-324 | CHEAT DAYのcostが取得前に理解可能 | V, H | SHOULD |
+| ID | Requirement | Evidence | Priority | Graybox status |
+| --- | --- | --- | --- | --- |
+| AC-320 | 高速・laser・突進攻撃に視覚予告がある | V, H | MUST | Tell ms automated; **Human readability PENDING** |
+| AC-321 | 画面外から予告なしのhitがない | I, E | MUST | Contract + e2e |
+| AC-322 | Bossに最低一つの安全経路が継続的に存在 | scripted analysis, H | MUST | **Human PENDING** |
+| AC-323 | RNG seedで避けられない重なりが生成されない | E | MUST | Seeded runs; **Human PENDING** |
+| AC-324 | CHEAT DAYのcostが取得前に理解可能 | V, H | SHOULD | Label `CAL+20`; **Human PENDING** |
 
 ## 8. Milestone D Acceptance — Release
 

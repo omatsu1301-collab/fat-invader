@@ -17,6 +17,9 @@ export type FatE2ERunSnapshot = {
   activePlayerProjectiles: number;
   activeEnemyProjectiles: number;
   activeEnemies?: number;
+  activePowerUps?: number;
+  phase?: string;
+  waveIndexInStage?: number;
   endReason?: 'FAT_OVER' | 'CLEAR';
   bossPhase?: string;
   bossX?: number;
@@ -39,6 +42,15 @@ export type FatE2ERunSnapshot = {
   fatOverPoseActive?: boolean;
   runEndedCount?: number;
   caption?: string;
+  /** Live power-up combat mods for integration evidence (E2E diagnostics). */
+  powerUpMods?: {
+    shotDamage: number;
+    fireIntervalMs: number;
+    moveSpeedMultiplier: number;
+    tripleShot: boolean;
+    invulnerable: boolean;
+  };
+  bossId?: string;
 };
 
 export type FatE2ESnapshot = {
@@ -69,6 +81,13 @@ export type E2EDebugHooks = {
   debugSetCombo: (combo: number) => void;
   debugSaturateVfxCaps: () => void;
   debugPlayDisplayKill: () => void;
+  debugSkipToBoss: () => void;
+  debugSkipWave: () => void;
+  debugAdvanceStage: (force?: boolean) => void;
+  debugSpawnPowerUp: (id: string) => void;
+  debugForceRunClear: () => void;
+  /** Production applyBossDamage path — used for phase-transition evidence. */
+  debugApplyBossDamage: (amount: number) => void;
 };
 
 export type FatE2EBridge = {
@@ -84,6 +103,12 @@ export type FatE2EBridge = {
   debugSetCombo: (combo: number) => void;
   debugSaturateVfxCaps: () => void;
   debugPlayDisplayKill: () => void;
+  debugSkipToBoss: () => void;
+  debugSkipWave: () => void;
+  debugAdvanceStage: (force?: boolean) => void;
+  debugSpawnPowerUp: (id: string) => void;
+  debugForceRunClear: () => void;
+  debugApplyBossDamage: (amount: number) => void;
 };
 
 declare global {
@@ -141,5 +166,11 @@ export function installE2EBridge(game: Phaser.Game): void {
     debugSetCombo: (combo) => getHooks()?.debugSetCombo(combo),
     debugSaturateVfxCaps: () => getHooks()?.debugSaturateVfxCaps(),
     debugPlayDisplayKill: () => getHooks()?.debugPlayDisplayKill(),
+    debugSkipToBoss: () => getHooks()?.debugSkipToBoss(),
+    debugSkipWave: () => getHooks()?.debugSkipWave(),
+    debugAdvanceStage: (force?: boolean) => getHooks()?.debugAdvanceStage(force),
+    debugSpawnPowerUp: (id: string) => getHooks()?.debugSpawnPowerUp(id),
+    debugForceRunClear: () => getHooks()?.debugForceRunClear(),
+    debugApplyBossDamage: (amount: number) => getHooks()?.debugApplyBossDamage(amount),
   };
 }

@@ -6,9 +6,13 @@
 
 ## Status
 
-**Milestone A — Vertical Slice: 完了 (Human Gate 1 PASS).** Title → Play → 1 Stage（FRY SCOUT 編隊 → KING BURGER 簡易ボス）→ Stage Clear / FAT OVER → Result → Retry が一本のRunとして通しで遊べる。仮素材・図形ベース。Human Gate 1（採用判断）はPC操作・コア体験・Boss進行を含めて正式PASS。公開版（GitHub Pages）でのProduction Smoke TestもPASS済み。
+**Full Graybox v0.1 — Draft PR in progress (Fast Flow).**  
+Title → Stage 1–3 → 3 Bosses → Run Clear / FAT OVER → Result → Retry が placeholder 中心で通し遊べる。
 
-現在: **Milestone B — Game Feel.** Human Gate 2 は **CONDITIONAL PASS / 修正付き採用**（正式PASSではない）。通常撃破feelは採用。Boss death は Human PASS「めっちゃいいね」（3-beat非変更）。FAT OVER pose は約2.6秒保持。AC-232/233は最終素材後に再判定。詳細は [`docs/06_IMPLEMENTATION_ROADMAP.md`](./docs/06_IMPLEMENTATION_ROADMAP.md) §5。
+- North Star 5素材の pipeline / runtime 統合は `main` 済み（PR #6）。
+- **Runtime Player** は Human 判断（2026-09-11）により三日坊主号ではなく「飛ぶ会社員」graybox silhouette。三日坊主号 asset は reference / future skin として保持。
+- 追加 AI 画像生成・final art / BGM・SE 制作は停止中（仕組み先行）。
+- 採用済み Game Feel（通常敵 kill / KING BURGER 3-beat / FAT OVER 2.6s）は非変更。
 
 ## Requirements
 
@@ -18,7 +22,7 @@
 ## Setup
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -26,22 +30,24 @@ npm run dev
 
 ## Commands
 
-| Command             | Purpose                                                     |
-| ------------------- | ----------------------------------------------------------- |
-| `npm run dev`       | 開発サーバー起動                                            |
-| `npm run build`     | 本番ビルド（`dist/`）。ビルド後に E2E bridge 不在を自動検証 |
-| `npm run preview`   | 本番ビルドをローカルでプレビュー                            |
-| `npm run typecheck` | TypeScript strict モードでの型検査                          |
-| `npm run lint`      | oxlint による静的解析                                       |
-| `npm run format`    | Prettier によるフォーマット                                 |
-| `npm run test`      | Vitest による unit / integration test                       |
-| `npm run test:e2e`  | Playwright による E2E test（Desktop / Mobile）              |
-| `npm run verify`    | typecheck → lint → test → build を一括実行                  |
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | 開発サーバー起動 |
+| `npm run build` | 本番ビルド（`dist/`）。ビルド後に E2E bridge 不在を自動検証 |
+| `npm run preview` | 本番ビルドをローカルでプレビュー |
+| `npm run typecheck` | TypeScript strict モードでの型検査 |
+| `npm run lint` | oxlint による静的解析 |
+| `npm run format` | Prettier によるフォーマット |
+| `npm run test` | Vitest による unit / integration test |
+| `npm run test:e2e` | Playwright による E2E test（Desktop / Mobile） |
+| `npm run assets:verify` | North Star pixel asset 契約検証（CI でも実行） |
+| `npm run verify` | typecheck → lint → test → build を一括実行 |
 
 ## Controls
 
 - **Desktop:** `← →` / `A D` で移動、`Space` / `J` で射撃、`Esc` / `P` でポーズ、`Space` / `Enter` で開始・Retry確定。
 - **Mobile:** 画面をドラッグして移動、自動射撃、右上ボタンでポーズ。
+- **Title:** START / HOW TO PLAY / SETTINGS（BGM・SE・Shake・Reduced Effects）。
 
 ## Deploy
 
@@ -54,4 +60,4 @@ Vite + TypeScript (strict) + Phaser。React や他ゲームエンジンは v0.1 
 ## Credits
 
 - Game engine: [Phaser](https://phaser.io/)
-- 素材・ライセンス記録は Milestone C 以降 `docs` / manifest に追記予定。
+- Pixel North Star / license: [`docs/09_ART_ASSET_INVENTORY.md`](./docs/09_ART_ASSET_INVENTORY.md), [`docs/10_PIXEL_ASSET_SPEC.md`](./docs/10_PIXEL_ASSET_SPEC.md)
