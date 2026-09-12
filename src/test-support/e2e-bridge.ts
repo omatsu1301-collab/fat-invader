@@ -11,6 +11,7 @@ export type FatE2ERunSnapshot = {
   bossesKilled: number;
   shotsFired: number;
   playerX: number;
+  playerY: number;
   /** Diagnostic only: proves the GameScene SHUTDOWN listener never accumulates (AC-135). */
   shutdownListenerCount: number;
   /** Diagnostic only: proves no previous run's bullets survive into a fresh one (AC-136). */

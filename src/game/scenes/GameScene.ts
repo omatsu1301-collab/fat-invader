@@ -89,8 +89,10 @@ type Phase =
   | 'ended';
 
 const PLAYFIELD_BOTTOM = LOGICAL_HEIGHT - GameBalance.playfield.bottomInset;
-const PLAYER_Y = LOGICAL_HEIGHT * 0.86;
 const PLAYER_MARGIN = 24;
+const PLAYER_COMBAT_MIN_Y = LOGICAL_HEIGHT * GameBalance.player.combatZoneMinYFraction;
+const PLAYER_COMBAT_MAX_Y = LOGICAL_HEIGHT * GameBalance.player.combatZoneMaxYFraction;
+const PLAYER_START_Y = LOGICAL_HEIGHT * 0.86;
 
 const COLOR_MILK_CREAM = '#FFF0D2';
 const COLOR_UI_MUTED = '#9D93B5';
@@ -190,9 +192,11 @@ export class GameScene extends Phaser.Scene {
     this.player = createPlayer(
       this,
       LOGICAL_WIDTH / 2,
-      PLAYER_Y,
+      PLAYER_START_Y,
       PLAYER_MARGIN,
       LOGICAL_WIDTH - PLAYER_MARGIN,
+      PLAYER_COMBAT_MIN_Y,
+      PLAYER_COMBAT_MAX_Y,
     );
 
     this.enemiesGroup = this.physics.add.group({
@@ -1186,6 +1190,7 @@ export class GameScene extends Phaser.Scene {
       bossesKilled: this.runState.bossesKilled,
       shotsFired: this.runState.shotsFired,
       playerX: this.player.sprite.x,
+      playerY: this.player.sprite.y,
       shutdownListenerCount: this.events.listenerCount(Phaser.Scenes.Events.SHUTDOWN),
       activePlayerProjectiles: countActive(this.playerProjectiles),
       activeEnemyProjectiles: countActive(this.enemyProjectiles) + countActive(this.sodaLaserHazards),

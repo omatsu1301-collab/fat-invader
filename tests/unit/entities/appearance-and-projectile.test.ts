@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { GameBalance } from '../../../src/game/config/balance';
 import { appearanceTintForTier, displayScaleForTier } from '../../../src/game/entities/Player';
 import { projectileBodyForBulletId } from '../../../src/game/entities/Projectile';
 
@@ -37,5 +38,17 @@ describe('projectile body preservation', () => {
       offsetX: 0,
       offsetY: 0,
     });
+  });
+});
+
+describe('Player hitbox contract (Combat Zone movement must not change)', () => {
+  it('keeps 24×28 body with offset (8,6) from spriteSize and hitbox ratios', () => {
+    const width = GameBalance.player.spriteSize;
+    const hitboxW = width * GameBalance.player.hitboxWidthRatio;
+    const hitboxH = width * GameBalance.player.hitboxHeightRatio;
+    expect(hitboxW).toBe(24);
+    expect(hitboxH).toBe(28);
+    expect((width - hitboxW) / 2).toBe(8);
+    expect((width - hitboxH) / 2).toBe(6);
   });
 });

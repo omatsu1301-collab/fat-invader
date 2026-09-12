@@ -2,17 +2,21 @@ import Phaser from 'phaser';
 import { computeMoveAxis } from '../domain/player-movement';
 
 export type InputIntent = {
-  /** Desktop keyboard axis: -1 left, 0 none, 1 right. Null when a drag is active. */
-  moveAxis: -1 | 0 | 1;
+  /** Desktop keyboard horizontal axis: -1 left, 0 none, 1 right. Ignored while dragging. */
+  moveAxisX: -1 | 0 | 1;
+  /** Desktop keyboard vertical axis: -1 up, 0 none, 1 down. Ignored while dragging. */
+  moveAxisY: -1 | 0 | 1;
   /** Mobile drag target in scene X coordinates, or null when not dragging. */
   dragTargetX: number | null;
+  /** Mobile drag target in scene Y coordinates, or null when not dragging. */
+  dragTargetY: number | null;
   firing: boolean;
   pauseRequested: boolean;
 };
 
 /**
- * FI-02 section 4: desktop keyboard (Left/A, Right/D, Space/J shoot, Esc/P
- * pause) and mobile single-pointer drag with auto-fire. Registers all
+ * FI-02 section 4: desktop keyboard (arrows / WASD, Space/J shoot, Esc/P
+ * pause) and mobile single-pointer 2D drag with auto-fire. Registers all
  * listeners itself and exposes `destroy()` so GameScene can guarantee no
  * listener survives a restart (FI-05 section 6.3, AC-135).
  */
@@ -23,6 +27,8 @@ export class InputSystem {
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys | undefined;
   private keyA: Phaser.Input.Keyboard.Key | undefined;
   private keyD: Phaser.Input.Keyboard.Key | undefined;
+  private keyW: Phaser.Input.Keyboard.Key | undefined;
+  private keyS: Phaser.Input.Keyboard.Key | undefined;
   private keySpace: Phaser.Input.Keyboard.Key | undefined;
   private keyJ: Phaser.Input.Keyboard.Key | undefined;
   private keyEsc: Phaser.Input.Keyboard.Key | undefined;
@@ -31,6 +37,7 @@ export class InputSystem {
   private pauseRequested = false;
   private activePointerId: number | null = null;
   private dragTargetX: number | null = null;
+  private dragTargetY: number | null = null;
 
   private readonly onPointerDown: (pointer: Phaser.Input.Pointer) => void;
   private readonly onPointerMove: (pointer: Phaser.Input.Pointer) => void;
@@ -53,6 +60,8 @@ export class InputSystem {
       this.cursors = keyboard.createCursorKeys();
       this.keyA = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
       this.keyD = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
+      this.keyW = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
+      this.keyS = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S);
       this.keySpace = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
       this.keyJ = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.J);
       this.keyEsc = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
@@ -70,15 +79,18 @@ export class InputSystem {
       if (this.activePointerId !== null) return;
       this.activePointerId = pointer.id;
       this.dragTargetX = pointer.worldX;
+      this.dragTargetY = pointer.worldY;
     };
     this.onPointerMove = (pointer): void => {
       if (pointer.id !== this.activePointerId) return;
       this.dragTargetX = pointer.worldX;
+      this.dragTargetY = pointer.worldY;
     };
     this.onPointerUp = (pointer): void => {
       if (pointer.id !== this.activePointerId) return;
       this.activePointerId = null;
       this.dragTargetX = null;
+      this.dragTargetY = null;
     };
 
     scene.input.on('pointerdown', this.onPointerDown);
@@ -90,8 +102,11 @@ export class InputSystem {
   poll(): InputIntent {
     const left = Boolean(this.cursors?.left.isDown) || Boolean(this.keyA?.isDown);
     const right = Boolean(this.cursors?.right.isDown) || Boolean(this.keyD?.isDown);
-    // AC-105: simultaneous left+right yields zero horizontal velocity.
-    const moveAxis = computeMoveAxis(left, right);
+    const up = Boolean(this.cursors?.up.isDown) || Boolean(this.keyW?.isDown);
+    const down = Boolean(this.cursors?.down.isDown) || Boolean(this.keyS?.isDown);
+    // AC-105: simultaneous opposite inputs yield zero on that axis.
+    const moveAxisX = computeMoveAxis(left, right);
+    const moveAxisY = computeMoveAxis(up, down);
 
     const firing =
       this.isMobile || Boolean(this.keySpace?.isDown) || Boolean(this.keyJ?.isDown);
@@ -99,7 +114,14 @@ export class InputSystem {
     const pauseRequested = this.pauseRequested;
     this.pauseRequested = false;
 
-    return { moveAxis, dragTargetX: this.dragTargetX, firing, pauseRequested };
+    return {
+      moveAxisX,
+      moveAxisY,
+      dragTargetX: this.dragTargetX,
+      dragTargetY: this.dragTargetY,
+      firing,
+      pauseRequested,
+    };
   }
 
   destroy(): void {
